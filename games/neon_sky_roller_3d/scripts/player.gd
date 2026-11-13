@@ -306,10 +306,23 @@ func _exit_supernova() -> void:
 	_apply_normal_look()
 	supernova_ended.emit()
 
+var _skin_albedo: Color = Color(0.8, 0.92, 1.0)
+var _skin_emission: Color = Color(0.25, 0.75, 1.0)
+var _skin_energy: float = 1.8
+
+func apply_skin(data: Dictionary) -> void:
+	_skin_albedo = data.get("albedo", Color(0.8, 0.92, 1.0))
+	_skin_emission = data.get("emission", Color(0.25, 0.75, 1.0))
+	_skin_energy = float(data.get("energy", 1.8))
+	if not is_supernova:
+		_apply_normal_look()
+
 func _apply_normal_look() -> void:
-	_mat.albedo_color = Color(0.8, 0.92, 1.0)
-	_mat.emission = Color(0.25, 0.75, 1.0)
-	_mat.emission_energy_multiplier = 1.8
-	var pm := trail.process_material as ParticleProcessMaterial
-	if pm:
-		pm.color = Color(0.45, 0.92, 1.0, 0.85)
+	if _mat == null:
+		return
+	_mat.albedo_color = _skin_albedo
+	_mat.emission = _skin_emission
+	_mat.emission_energy_multiplier = _skin_energy
+	if trail and trail.process_material is ParticleProcessMaterial:
+		var pm := trail.process_material as ParticleProcessMaterial
+		pm.color = Color(_skin_emission.r, _skin_emission.g, _skin_emission.b, 0.85)

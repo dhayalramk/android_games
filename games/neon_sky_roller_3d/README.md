@@ -4,14 +4,18 @@ Flagship **solo-leveling** sky highway roller for Android (Godot 4.7 Mobile).
 
 One folder = one game: `games/neon_sky_roller_3d/`
 
-## Why it hooks
+## Why people keep coming back
 
-- **Tap to roll, drag to steer** — zero learning curve
-- **Level 1 → ∞** — each clear unlocks a faster, tighter, meaner skyway
-- **Gems + combos** — ascending streak dopamine
-- **Boost pads** — FOV warp + speed surge
-- **Supernova Fever** — survive ~4.5s clean to go invincible and smash barriers
-- **0.2s retry** — wipeout → tap → rolling again
+| Hook | Why it works |
+|---|---|
+| **Daily Gift + login streak** | Come back tomorrow for gems; miss a day and the streak resets |
+| **Daily Mission** | One clear goal every day (clears / gems / ★★★ / turbo / supernova) |
+| **Solo Rank (XP)** | Permanent power-fantasy climb — every clear feeds your rank |
+| **★★★ Mastery** | Replay earlier levels for perfect stars |
+| **Ball Garage** | Spend gems on Cyber / Chrome / Solar / Dark Matter / Aurora / Crimson |
+| **Comeback bonus** | Away 2+ days? Extra gem gift when you return |
+
+Plus the core loop: level 1→∞, turbo/brake control, Supernova smash, instant retry.
 
 ## Controls
 

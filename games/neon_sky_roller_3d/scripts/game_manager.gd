@@ -3,6 +3,8 @@ extends Node3D
 
 const LevelConfigScript = preload("res://scripts/level_config.gd")
 const PlayerScript = preload("res://scripts/player.gd")
+const ProgressScript = preload("res://scripts/progress.gd")
+const MetaHubScript = preload("res://scripts/meta_hub.gd")
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var sun: DirectionalLight3D = $DirectionalLight3D
@@ -12,6 +14,7 @@ const PlayerScript = preload("res://scripts/player.gd")
 @onready var player: CharacterBody3D = $Player
 @onready var clouds: Node3D = $CloudField
 @onready var fill_light: OmniLight3D = $FillLight
+@onready var canvas: CanvasLayer = $CanvasLayer
 
 @onready var level_label: Label = $CanvasLayer/HUD/LevelLabel
 @onready var title_label: Label = $CanvasLayer/HUD/TitleLabel
@@ -25,10 +28,14 @@ const PlayerScript = preload("res://scripts/player.gd")
 @onready var banner_sub: Label = $CanvasLayer/Banner/BannerSub
 @onready var hud: Control = $CanvasLayer/HUD
 
+var progress
+var hub: Control
+var in_hub: bool = true
 var level: int = 1
-var max_unlocked: int = 1
 var score: int = 0
-var gems: int = 0
+var run_gems: int = 0
+var used_supernova: bool = false
+var used_turbo: bool = false
 var cfg
 var dragging: bool = false
 var camera_shake: float = 0.0
@@ -37,15 +44,16 @@ var base_fov: float = 70.0
 var cam_offset: Vector3 = Vector3(0, 5.2, 7.8)
 var started: bool = false
 var banner_timer: float = 0.0
-var save_path := "user://neon_sky_roller.save"
 var _theme: Dictionary = {}
 var _sky_mat: ProceduralSkyMaterial
 var speed_label: Label
 var speed_bar: ProgressBar
 var turbo_hint: Label
+var home_btn: Button
 
 func _ready() -> void:
-	_load_progress()
+	progress = ProgressScript.new()
+	progress.load_save()
 	player.died.connect(_on_died)
 	player.finished.connect(_on_finished)
 	player.gem_collected.connect(_on_gem)
@@ -59,10 +67,12 @@ func _ready() -> void:
 	track.finish_reached.connect(_on_finish_gate)
 	fever_label.visible = false
 	_setup_speed_hud()
+	_setup_home_button()
 	_setup_sky()
 	_build_clouds()
-	# Always offer the climb from the furthest unlocked stage
-	_start_level(clampi(max_unlocked, 1, 99))
+	_setup_hub()
+	player.apply_skin(progress.skin_data())
+	_show_hub()
 
 func _setup_speed_hud() -> void:
 	speed_label = Label.new()
@@ -106,6 +116,48 @@ func _setup_speed_hud() -> void:
 	turbo_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(turbo_hint)
 
+func _setup_home_button() -> void:
+	home_btn = Button.new()
+	home_btn.text = "HOME"
+	home_btn.add_theme_font_size_override("font_size", 14)
+	home_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	home_btn.offset_left = 24
+	home_btn.offset_top = 100
+	home_btn.offset_right = 110
+	home_btn.offset_bottom = 132
+	home_btn.visible = false
+	home_btn.pressed.connect(_show_hub)
+	hud.add_child(home_btn)
+
+func _setup_hub() -> void:
+	hub = Control.new()
+	hub.set_script(MetaHubScript)
+	canvas.add_child(hub)
+	hub.setup(progress)
+	hub.play_pressed.connect(_on_hub_play)
+	hub.skin_changed.connect(_on_skin_changed)
+
+func _show_hub() -> void:
+	in_hub = true
+	hub.visible = true
+	hub.refresh()
+	hud.visible = false
+	banner.visible = false
+	home_btn.visible = false
+	player.state = PlayerScript.State.READY
+	player.velocity = Vector3.ZERO
+	dragging = false
+
+func _on_hub_play(lvl: int) -> void:
+	in_hub = false
+	hub.visible = false
+	hud.visible = true
+	home_btn.visible = true
+	_start_level(clampi(lvl, 1, 999))
+
+func _on_skin_changed() -> void:
+	player.apply_skin(progress.skin_data())
+
 func _setup_sky() -> void:
 	var env := world_env.environment
 	var sky := Sky.new()
@@ -147,13 +199,21 @@ func _start_level(lvl: int) -> void:
 
 	var spawn: Vector3 = track.build(cfg, _theme)
 	player.reset_for_level(spawn, cfg, track)
+	player.apply_skin(progress.skin_data())
 	started = false
 	score = 0
+	run_gems = 0
+	used_supernova = false
+	used_turbo = false
 	_update_hud()
 
 	banner.visible = true
 	banner_title.text = "LEVEL %d" % level
-	banner_sub.text = cfg.title
+	var stars: int = progress.stars_for(level)
+	var star_txt := ""
+	for i in range(3):
+		star_txt += "★" if i < stars else "☆"
+	banner_sub.text = "%s  %s" % [cfg.title, star_txt]
 	banner_timer = 1.45
 	banner.modulate.a = 1.0
 	hint_label.text = "Drag ←→ steer · ↑ turbo · ↓ brake"
@@ -197,6 +257,8 @@ func _apply_theme(theme: Dictionary) -> void:
 	RenderingServer.set_default_clear_color(theme["sky"])
 
 func _unhandled_input(event: InputEvent) -> void:
+	if in_hub:
+		return
 	if event is InputEventMouseButton:
 		_handle_press(event.pressed, event.position)
 		get_viewport().set_input_as_handled()
@@ -209,6 +271,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_apply_steer_from_pos(event.position)
 
 func _input(event: InputEvent) -> void:
+	if in_hub:
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if player.state == PlayerScript.State.DEAD or player.state == PlayerScript.State.WIN:
 			_handle_press(true, event.position)
@@ -219,11 +283,14 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _handle_press(pressed: bool, pos: Vector2) -> void:
+	if in_hub:
+		return
 	if pressed:
 		if player.state == PlayerScript.State.DEAD:
 			_start_level(level)
 			return
 		if player.state == PlayerScript.State.WIN:
+			# After clear: next level, or home if they want the meta loop
 			_start_level(level + 1)
 			return
 		if player.state == PlayerScript.State.READY:
@@ -257,12 +324,17 @@ func _apply_controls_from_pos(pos: Vector2) -> void:
 	player.set_throttle(ny)
 
 func _process(delta: float) -> void:
+	if in_hub:
+		return
 	if banner_timer > 0.0:
 		banner_timer -= delta
 		if player.state == PlayerScript.State.READY:
 			banner.modulate.a = clampf(banner_timer * 2.0, 0.0, 1.0)
 			if banner_timer <= 0.0:
 				banner.visible = false
+
+	if player.throttle > 0.4:
+		used_turbo = true
 
 	player.update_ball(delta)
 	_update_camera(delta)
@@ -340,14 +412,16 @@ func _update_hud() -> void:
 	level_label.text = "LEVEL %d" % level
 	title_label.text = cfg.title if cfg else ""
 	score_label.text = str(score)
-	gem_label.text = "◆ %d" % gems
+	gem_label.text = "◆ %d" % progress.gems
 
 func _on_gem_taken(_gem: Node3D, value: int) -> void:
 	player.collect_gem(value)
 
 func _on_gem(value: int, streak: int) -> void:
 	score += value
-	gems += 1
+	run_gems += 1
+	progress.gems += 1
+	progress.add_mission_progress("gem", 1)
 	_update_hud()
 	_vibrate(12)
 	hint_label.visible = true
@@ -411,13 +485,20 @@ func _on_finish_gate() -> void:
 
 func _on_finished() -> void:
 	score += cfg.finish_bonus
-	gems += 5
+	var awards: Dictionary = progress.record_clear(level, score, run_gems, used_supernova, used_turbo)
 	_update_hud()
-	max_unlocked = maxi(max_unlocked, level + 1)
-	_save_progress()
+	var star_txt := ""
+	for i in range(3):
+		star_txt += "★" if i < int(awards["stars"]) else "☆"
 	banner.visible = true
-	banner_title.text = "LEVEL CLEAR"
-	banner_sub.text = "+%d  ·  Tap for Level %d" % [cfg.finish_bonus, level + 1]
+	banner_title.text = "LEVEL CLEAR  %s" % star_txt
+	var sub := "+◆%d  XP+%d  ·  Tap → L%d" % [int(awards["clear_gems"]), int(awards["xp"]), level + 1]
+	if bool(awards.get("rank_up", false)):
+		sub += "  ·  RANK UP!"
+	if int(awards.get("mission_gems", 0)) > 0:
+		sub += "  ·  Mission +◆%d" % int(awards["mission_gems"])
+	sub += "\n%s" % progress.reason_to_return()
+	banner_sub.text = sub
 	banner_timer = 99.0
 	banner.modulate.a = 1.0
 	camera_shake = 0.22
@@ -433,12 +514,15 @@ func _on_died(reason: String) -> void:
 			banner_sub.text = "Slipped off the rail · Tap to retry"
 		_:
 			banner_sub.text = "Hit a barrier · Tap to retry"
+	banner_sub.text += "\n%s" % progress.reason_to_return()
 	banner_timer = 99.0
 	banner.modulate.a = 1.0
 	camera_shake = 0.45
 	_vibrate(220)
 
 func _on_supernova_start() -> void:
+	used_supernova = true
+	progress.add_mission_progress("supernova", 1)
 	fever_label.visible = true
 	fever_label.text = "SUPERNOVA"
 	fov_pulse = 16.0
@@ -456,15 +540,3 @@ func _on_near_miss() -> void:
 func _vibrate(ms: int) -> void:
 	if OS.has_feature("android") or OS.has_feature("mobile"):
 		Input.vibrate_handheld(ms)
-
-func _save_progress() -> void:
-	var f := ConfigFile.new()
-	f.set_value("progress", "max_unlocked", max_unlocked)
-	f.set_value("progress", "gems", gems)
-	f.save(save_path)
-
-func _load_progress() -> void:
-	var f := ConfigFile.new()
-	if f.load(save_path) == OK:
-		max_unlocked = int(f.get_value("progress", "max_unlocked", 1))
-		gems = int(f.get_value("progress", "gems", 0))
