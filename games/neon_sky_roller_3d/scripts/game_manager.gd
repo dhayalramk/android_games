@@ -793,13 +793,14 @@ func _on_finished() -> void:
 func _on_died(reason: String) -> void:
 	banner.visible = true
 	banner_title.text = "WIPEOUT"
+	var tip := "Tap to retry — you’ve got this"
 	match reason:
 		"fall":
-			banner_sub.text = "Fell into the clouds · Tap to retry"
+			banner_sub.text = "Dropped into the clouds\n%s" % tip
 		"edge":
-			banner_sub.text = "Slipped off the rail · Tap to retry"
+			banner_sub.text = "Slipped off the rail\nBrake next time · %s" % tip
 		_:
-			banner_sub.text = "Hit a barrier · Tap to retry"
+			banner_sub.text = "Hit a barrier\nSteer earlier · %s" % tip
 	banner_sub.text += "\n%s" % progress.reason_to_return()
 	banner_timer = 99.0
 	banner.modulate.a = 1.0

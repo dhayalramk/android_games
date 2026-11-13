@@ -203,6 +203,43 @@ func _build() -> void:
 	UI.label_outline(tip, Color(0.7, 0.8, 0.95, 0.9), 12, Color(0, 0, 0, 0.4), 2)
 	col.add_child(tip)
 
+	# Bottom highway teaser fills empty phone space with brand fantasy
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(spacer)
+
+	var teaser := PanelContainer.new()
+	teaser.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	teaser.add_theme_stylebox_override("panel", UI.panel(Color(0.06, 0.08, 0.16, 0.88), 20, Color(1.0, 0.55, 0.25, 0.35)))
+	col.add_child(teaser)
+	var teaser_col := VBoxContainer.new()
+	teaser_col.add_theme_constant_override("separation", 6)
+	teaser.add_child(teaser_col)
+	var teaser_title := Label.new()
+	teaser_title.text = "SKY HIGHWAY AHEAD"
+	teaser_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UI.label_outline(teaser_title, Color(1.0, 0.75, 0.4), 15, Color(0, 0, 0, 0.55), 4)
+	teaser_col.add_child(teaser_title)
+	var rail := ColorRect.new()
+	rail.custom_minimum_size = Vector2(0, 10)
+	rail.color = Color(1.0, 0.55, 0.2, 0.85)
+	rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	teaser_col.add_child(rail)
+	_hero_orb = ColorRect.new()
+	_hero_orb.custom_minimum_size = Vector2(36, 36)
+	_hero_orb.color = Color(0.45, 0.92, 1.0, 0.95)
+	_hero_orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var orb_wrap := CenterContainer.new()
+	orb_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orb_wrap.add_child(_hero_orb)
+	teaser_col.add_child(orb_wrap)
+	var teaser_sub := Label.new()
+	teaser_sub.text = "Turbo · Gems · Supernova · Solo Rank"
+	teaser_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UI.label_outline(teaser_sub, Color(0.75, 0.9, 1.0, 0.9), 12, Color(0, 0, 0, 0.45), 2)
+	teaser_col.add_child(teaser_sub)
+
 	_toast = Label.new()
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UI.label_outline(_toast, Color(1, 0.95, 0.7), 18, Color(0, 0, 0, 0.7), 8)
@@ -275,6 +312,9 @@ func _process(delta: float) -> void:
 		_toast_timer -= delta
 		if _toast_timer <= 0.6:
 			_toast.modulate.a = maxf(0.0, _toast_timer / 0.6)
+	if _hero_orb:
+		var pulse: float = 0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.006)
+		_hero_orb.modulate = Color(1, 1, 1, pulse)
 
 func _on_daily() -> void:
 	var r: Dictionary = progress.claim_daily()
