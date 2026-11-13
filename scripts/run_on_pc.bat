@@ -1,0 +1,3 @@
+@echo off
+echo Starting Stack Smash 3D in desktop test mode...
+call "%~dp0godot.bat" --path "%~dp0..\games\stack_smash_3d"

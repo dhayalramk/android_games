@@ -1,0 +1,13 @@
+9cad1ddce9e5a63143ba340c9520626b
+::res://::1794579283
+export_presets.cfg::TextFile::-1::1794579278::0::1::::<><><>0<>0<><>::
+icon.svg::CompressedTexture2D::1670914532642991999::1794578967::1794579288::1::::<><><>0<>0<>1e3b3ca5159a2b21c295b0d04183e313<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
+::res://build/::1794579271
+::res://scenes/::1794579144
+main.tscn::PackedScene::2124061331071527911::1794579144::0::1::::<><><>0<>0<><>::res://scripts/game_manager.gd<>res://scripts/tower.gd<>res://scripts/ball.gd
+::res://scripts/::1794579114
+ball.gd::GDScript::1732258198484287540::1794579200::0::1::::<>Node3D<><>0<>0<><>::
+game_manager.gd::GDScript::5797652007030202385::1794579220::0::1::::<>Node3D<><>0<>0<><>::
+ring.gd::GDScript::7859503710752223879::1794579180::0::1::::<>Node3D<><>0<>0<><>::
+ring_slice.gd::GDScript::1960317056588843925::1794579020::0::1::::RingSlice<>Node3D<><>0<>0<><>::
+tower.gd::GDScript::1158604431510286744::1794579190::0::1::::<>Node3D<><>0<>0<><>::
