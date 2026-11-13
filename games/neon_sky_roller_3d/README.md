@@ -39,21 +39,37 @@ Named climbs through Level 10, then Ascension / Overdrive / Solo Level N.
 
 ## Run locally
 
-1. Open this folder in **Godot 4.7+**
+1. Open this folder in **Godot 4.7+** (4.3+ works for Mobile)
 2. Press Play (`F5`) — mouse drag emulates touch
-3. Or export Android preset → install with `scripts/install_to_phone.bat`
+3. Debug APK: `./scripts/build_debug_apk.sh` then install with adb / `scripts/install_to_phone.bat`
+
+## Release (Play Store AAB)
+
+See **[docs/RELEASE.md](docs/RELEASE.md)** and **[PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)**.
+
+```bash
+./scripts/set_version.sh 1.0.1
+export NSR_RELEASE_KEYSTORE=... NSR_RELEASE_KEYSTORE_USER=... NSR_RELEASE_KEYSTORE_PASS=...
+./scripts/build_release_aab.sh   # → build/neon_sky_roller_3d-release.aab
+```
 
 ## Project layout
 
 ```text
 neon_sky_roller_3d/
 ├── project.godot
+├── VERSION
+├── export_presets.cfg      # Debug APK + Release AAB
+├── PRODUCTION_CHECKLIST.md
+├── docs/RELEASE.md
 ├── scenes/main.tscn
-├── scripts/
-│   ├── game_manager.gd   # loop, HUD, save, camera juice
-│   ├── player.gd         # ball physics + supernova
-│   ├── track.gd          # procedural sky highway
-│   ├── level_config.gd   # solo-leveling curve
-│   └── spinner.gd        # rotating hazards
-└── export_presets.cfg
+└── scripts/
+    ├── game_manager.gd
+    ├── player.gd
+    ├── track.gd
+    ├── level_config.gd
+    ├── progress.gd / meta_hub.gd / sfx.gd / ui_style.gd
+    ├── set_version.sh
+    ├── build_debug_apk.sh
+    └── build_release_aab.sh
 ```

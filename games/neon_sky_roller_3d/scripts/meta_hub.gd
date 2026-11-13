@@ -18,10 +18,12 @@ var _level_row: HBoxContainer
 var _toast: Label
 var _toast_timer: float = 0.0
 var _hero_orb: ColorRect
+var _play_lock: bool = false
 
 func setup(p) -> void:
 	progress = p
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 	refresh()
@@ -31,10 +33,11 @@ func _build() -> void:
 		c.queue_free()
 	_skin_btns.clear()
 
-	# Atmospheric backdrop
+	# Atmospheric backdrop — IGNORE so buttons above always receive taps
 	var bg := ColorRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color(0.03, 0.04, 0.09, 1)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
 	var glow := ColorRect.new()
@@ -51,8 +54,15 @@ func _build() -> void:
 	glow2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(glow2)
 
+	# Full-screen hit catcher behind content (blocks 3D world taps)
+	var catcher := Control.new()
+	catcher.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	catcher.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(catcher)
+
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.mouse_filter = Control.MOUSE_FILTER_STOP
 	margin.add_theme_constant_override("margin_left", 22)
 	margin.add_theme_constant_override("margin_right", 22)
 	margin.add_theme_constant_override("margin_top", 28)
@@ -115,19 +125,30 @@ func _build() -> void:
 
 	_daily_btn = Button.new()
 	_daily_btn.custom_minimum_size = Vector2(0, 54)
+	_daily_btn.focus_mode = Control.FOCUS_ALL
+	_daily_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	_daily_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	UI.apply_button(_daily_btn, Color(0.95, 0.45, 0.15), Color(1.0, 0.85, 0.4), Color(1, 1, 1), 18)
 	_daily_btn.pressed.connect(_on_daily)
 	col.add_child(_daily_btn)
 
 	_play_btn = Button.new()
-	_play_btn.custom_minimum_size = Vector2(0, 72)
+	_play_btn.name = "PlayButton"
+	_play_btn.custom_minimum_size = Vector2(0, 76)
+	_play_btn.focus_mode = Control.FOCUS_ALL
+	_play_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	_play_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	UI.apply_button(_play_btn, Color(0.15, 0.75, 0.95), Color(0.7, 1.0, 1.0), Color(0.02, 0.08, 0.12), 28)
 	_play_btn.pressed.connect(_on_play)
+	# Extra safety: also accept gui click/touch on the button area
+	_play_btn.gui_input.connect(_on_play_gui_input)
 	col.add_child(_play_btn)
 
 	var replay := Button.new()
 	replay.text = "REPLAY FOR ★★★"
 	replay.custom_minimum_size = Vector2(0, 48)
+	replay.mouse_filter = Control.MOUSE_FILTER_STOP
+	replay.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	UI.apply_button(replay, Color(0.18, 0.14, 0.32), Color(1.0, 0.85, 0.4, 0.55), Color(1, 0.92, 0.7), 16)
 	replay.pressed.connect(_on_replay_stars)
 	col.add_child(replay)
@@ -259,7 +280,26 @@ func _on_daily() -> void:
 	refresh()
 
 func _on_play() -> void:
+	if _play_lock or progress == null:
+		return
+	_play_lock = true
 	play_pressed.emit(progress.max_unlocked)
+	# Unlock next frame so rapid double-signals don't re-enter
+	get_tree().create_timer(0.35).timeout.connect(func(): _play_lock = false)
+
+func _on_play_gui_input(event: InputEvent) -> void:
+	# Fallback only when pressed signal fails under touch-emulation
+	if _play_lock:
+		return
+	var tap := false
+	if event is InputEventScreenTouch and event.pressed:
+		tap = true
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		# Prefer the normal pressed signal for mouse; only use fallback for touch
+		return
+	if tap:
+		_on_play()
+		accept_event()
 
 func _on_replay_stars() -> void:
 	for lvl in range(1, progress.max_unlocked + 1):

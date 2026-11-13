@@ -155,8 +155,10 @@ func _setup_home_button() -> void:
 	hud.add_child(home_btn)
 
 func _setup_hub() -> void:
+	canvas.layer = 100
 	hub = MetaHubScript.new()
-	hub.z_index = 20
+	hub.z_index = 50
+	hub.mouse_filter = Control.MOUSE_FILTER_STOP
 	canvas.add_child(hub)
 	hub.setup(progress)
 	hub.play_pressed.connect(_on_hub_play)
@@ -164,18 +166,28 @@ func _setup_hub() -> void:
 
 func _show_hub() -> void:
 	in_hub = true
-	hub.visible = true
-	hub.refresh()
+	dragging = false
+	player.set_finger_held(false)
+	player.set_steer(0.0)
+	player.set_throttle(0.0)
+	player.state = PlayerScript.State.READY
+	player.velocity = Vector3.ZERO
 	hud.visible = false
 	banner.visible = false
 	home_btn.visible = false
-	player.state = PlayerScript.State.READY
-	player.velocity = Vector3.ZERO
-	dragging = false
+	hub.visible = true
+	hub.mouse_filter = Control.MOUSE_FILTER_STOP
+	hub.move_to_front()
+	hub.refresh()
+	# Block world from eating taps while menu is up
+	get_viewport().gui_release_focus()
 
 func _on_hub_play(lvl: int) -> void:
+	if sfx:
+		sfx.ui()
 	in_hub = false
 	hub.visible = false
+	hub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.visible = true
 	home_btn.visible = true
 	_start_level(clampi(lvl, 1, 999))
