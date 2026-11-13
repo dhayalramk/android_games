@@ -9,35 +9,31 @@ One folder = one game: `games/neon_tac_blitz/`
 | Twist | What it does |
 |---|---|
 | **Blitz clock** | 5 seconds per turn — miss it and you drop randomly |
-| **💣 Bomb cells** | Claim the cell → clear adjacent marks |
-| **🌀 Warp cells** | Claim → place an extra mark somewhere empty |
-| **❄ Freeze cells** | Claim → that mark is locked against bombs |
-| **Ult** | Win 2 rounds in a row → place **twice** in one turn |
+| **BOMB cells** | Claim → clear adjacent marks |
+| **WARP cells** | Claim → place an extra mark |
+| **ICE cells** | Claim → mark is locked against bombs |
+| **Ult** | Win 2 rounds in a row → place **twice** |
+| **Daily gift** | Come back for gems + login streak |
 
-You are **✕** (cyan). AI is **○** (coral). Best of endless rematches.
+You are **✕** (cyan). AI is **○** (coral).
 
 ## Run
 
-1. Open this folder in **Godot 4.3+**
-2. Press Play (`F5`) — mouse clicks emulate touch
-3. Or: `scripts/run_neon_tac_blitz.bat` / `.sh` from repo root
-
-## Controls
-
-- Tap an empty cell to place
-- Tap glowing power badges for chaos effects
-- Arm Ult when ready, then place twice
-
-## Layout
-
-```text
-neon_tac_blitz/
-├── project.godot
-├── scenes/main.tscn
-├── scripts/
-│   ├── game_manager.gd
-│   ├── ai.gd
-│   ├── sfx.gd
-│   └── ui_style.gd
-└── README.md
+```bash
+godot --path games/neon_tac_blitz
+# or
+./scripts/run_neon_tac_blitz.sh
 ```
+
+Press **S** / Start Blitz. Desktop: Enter rematch after a round.
+
+## Release (Play)
+
+See **[docs/RELEASE.md](docs/RELEASE.md)** and **[PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)**.
+
+```bash
+./scripts/install_android_template.sh
+./scripts/build_release_aab.sh   # → build/neon_tac_blitz-release.aab
+```
+
+Listing copy: `docs/PLAY_LISTING.md` · Store art: `store/`

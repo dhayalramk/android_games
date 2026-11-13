@@ -4,6 +4,7 @@ extends Control
 const UI = preload("res://scripts/ui_style.gd")
 const AIScript = preload("res://scripts/ai.gd")
 const SfxScript = preload("res://scripts/sfx.gd")
+const ProgressScript = preload("res://scripts/progress.gd")
 
 const MARK_EMPTY := 0
 const MARK_X := 1
@@ -47,9 +48,16 @@ var board_wrap: GridContainer
 var banner: Label
 var flash: ColorRect
 var tip: Label
+var progress
+var daily_btn: Button
+var home_btn: Button
+var win_line: Array = []
+var gem_label: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	progress = ProgressScript.new()
+	progress.load_save()
 	sfx = SfxScript.new()
 	add_child(sfx)
 	_build_ui()
@@ -111,6 +119,11 @@ func _build_ui() -> void:
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UI.label_outline(score_label, Color(1, 0.95, 0.85), 16, Color(0, 0, 0, 0.55), 4)
 	col.add_child(score_label)
+
+	gem_label = Label.new()
+	gem_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UI.label_outline(gem_label, Color(0.45, 1.0, 0.95), 15, Color(0, 0, 0, 0.5), 3)
+	col.add_child(gem_label)
 
 	streak_label = Label.new()
 	streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -265,6 +278,12 @@ func _build_ui() -> void:
 	UI.label_outline(blurb, Color(0.85, 0.92, 1.0), 16, Color(0, 0, 0, 0.55), 4)
 	menu_col.add_child(blurb)
 
+	daily_btn = Button.new()
+	daily_btn.custom_minimum_size = Vector2(0, 54)
+	UI.apply_button(daily_btn, Color(0.95, 0.45, 0.15), Color(1.0, 0.85, 0.4), Color(1, 1, 1), 18)
+	daily_btn.pressed.connect(_on_daily)
+	menu_col.add_child(daily_btn)
+
 	play_btn = Button.new()
 	play_btn.text = "▶  START BLITZ"
 	play_btn.custom_minimum_size = Vector2(0, 72)
@@ -281,21 +300,60 @@ func _build_ui() -> void:
 	UI.label_outline(how, Color(0.7, 0.85, 1.0), 14, Color(0, 0, 0, 0.5), 3)
 	menu_col.add_child(how)
 
+	home_btn = Button.new()
+	home_btn.text = "⌂ HOME"
+	home_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	home_btn.offset_left = 18
+	home_btn.offset_top = 18
+	home_btn.offset_right = 120
+	home_btn.offset_bottom = 58
+	home_btn.visible = false
+	UI.apply_button(home_btn, Color(0.1, 0.12, 0.2, 0.9), Color(0.5, 0.8, 1.0, 0.45), Color(1, 1, 1), 14)
+	home_btn.pressed.connect(_show_menu)
+	add_child(home_btn)
+
 func _show_menu() -> void:
 	in_menu = true
 	menu_layer.visible = true
+	if home_btn:
+		home_btn.visible = false
 	_reset_board_state(false)
 	_refresh_hud()
+	_refresh_daily_btn()
+
+func _refresh_daily_btn() -> void:
+	if daily_btn == null or progress == null:
+		return
+	daily_btn.disabled = not progress.can_claim_daily()
+	if progress.can_claim_daily():
+		daily_btn.text = "✦  CLAIM DAILY  +gems"
+	else:
+		daily_btn.text = "✓  CLAIMED  ·  streak %d" % progress.login_streak
+
+func _on_daily() -> void:
+	if progress == null:
+		return
+	var r: Dictionary = progress.claim_daily()
+	if int(r["gems"]) <= 0:
+		status.text = "Come back tomorrow"
+	else:
+		status.text = "+◆%d daily  ·  streak %d" % [int(r["gems"]), int(r["streak"])]
+		if sfx:
+			sfx.win()
+	_refresh_hud()
+	_refresh_daily_btn()
 
 func _start_from_menu() -> void:
 	if sfx:
 		sfx.tap()
 	in_menu = false
 	menu_layer.visible = false
-	match_wins = 0
-	match_losses = 0
-	win_streak = 0
-	ult_ready = false
+	if home_btn:
+		home_btn.visible = true
+	# Keep series score across rounds in a session; only reset on fresh menu start
+	if match_wins == 0 and match_losses == 0:
+		win_streak = 0
+		ult_ready = false
 	_start_round()
 
 func _start_round() -> void:
@@ -307,12 +365,15 @@ func _start_round() -> void:
 	player_turn = true
 	ai_thinking = false
 	ult_armed = false
+	win_line.clear()
 	_reset_board_state(true)
 	_spawn_opening_powers()
 	_refresh_board()
 	_refresh_hud()
 	status.text = "Your move — beat the clock"
 	turn_left = TURN_TIME
+	if home_btn:
+		home_btn.visible = true
 	if sfx:
 		sfx.tap()
 
@@ -516,7 +577,9 @@ func _check_winner() -> int:
 	for line in lines:
 		var a: int = board[line[0]]
 		if a != MARK_EMPTY and a == board[line[1]] and a == board[line[2]]:
+			win_line = line.duplicate()
 			return a
+	win_line.clear()
 	return MARK_EMPTY
 
 func _board_full() -> bool:
@@ -537,23 +600,38 @@ func _end_round(winner: int) -> void:
 		win_streak += 1
 		if win_streak >= 2:
 			ult_ready = true
+		if progress:
+			progress.record_win(win_streak)
 		banner.text = "YOU WIN"
-		status.text = "Line locked — nice"
+		status.text = "Line locked — +◆5"
 		flash.color = Color(0.4, 1.0, 0.85, 0.4)
 		if sfx:
 			sfx.win()
 		_vibrate(80)
+		_highlight_win_line(Color(0.35, 0.95, 1.0))
 	else:
 		match_losses += 1
 		win_streak = 0
 		ult_ready = false
+		if progress:
+			progress.record_loss()
 		banner.text = "AI WINS"
 		status.text = "Shake it off — rematch"
 		flash.color = Color(1.0, 0.35, 0.25, 0.35)
 		if sfx:
 			sfx.lose()
 		_vibrate(140)
+		_highlight_win_line(Color(1.0, 0.55, 0.25))
 	_refresh_hud()
+
+func _highlight_win_line(col: Color) -> void:
+	for idx in win_line:
+		var cell: Button = cells[idx]
+		UI.apply_button(cell, Color(col.r, col.g, col.b, 0.28), col, Color(1, 1, 1), 48)
+		cell.pivot_offset = cell.size * 0.5
+		var tw := create_tween()
+		tw.tween_property(cell, "scale", Vector2(1.08, 1.08), 0.15)
+		tw.tween_property(cell, "scale", Vector2.ONE, 0.2)
 
 func _end_draw() -> void:
 	game_over = true
@@ -616,6 +694,8 @@ func _refresh_board() -> void:
 
 func _refresh_hud() -> void:
 	score_label.text = "YOU  %d   —   AI  %d" % [match_wins, match_losses]
+	if progress:
+		gem_label.text = "◆ %d   ·   best streak %d" % [progress.gems, progress.best_streak]
 	if ult_ready:
 		streak_label.text = "ULT READY — tap the Ult button"
 	elif win_streak > 0:
