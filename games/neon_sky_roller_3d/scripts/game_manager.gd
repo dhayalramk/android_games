@@ -111,26 +111,42 @@ func _apply_theme(theme: Dictionary) -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = theme["ambient"]
 	env.ambient_light_energy = 0.85
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 0.95
 	env.glow_enabled = true
-	env.glow_intensity = 1.1
-	env.glow_bloom = 0.35
+	env.glow_intensity = 0.55
+	env.glow_bloom = 0.12
 	env.fog_enabled = true
 	env.fog_light_color = theme["fog"]
-	env.fog_density = 0.012
-	env.fog_aerial_perspective = 0.4
+	env.fog_density = 0.008
+	env.fog_aerial_perspective = 0.25
 	sun.light_color = theme["light"]
-	sun.light_energy = 1.35
+	sun.light_energy = 1.1
+	# Force clear color to theme sky so software/GL backends don't wash white
+	RenderingServer.set_default_clear_color(theme["sky"])
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		_handle_press(event.pressed, event.position)
+		get_viewport().set_input_as_handled()
 	elif event is InputEventScreenTouch:
 		_handle_press(event.pressed, event.position)
+		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseMotion and dragging:
 		_handle_drag(event.position)
 	elif event is InputEventScreenDrag:
 		_handle_drag(event.position)
+
+func _input(event: InputEvent) -> void:
+	# Also catch presses while overlay banners are up (retry / next level)
+	if event is InputEventMouseButton and event.pressed:
+		if player.state == PlayerScript.State.DEAD or player.state == PlayerScript.State.WIN:
+			_handle_press(true, event.position)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventScreenTouch and event.pressed:
+		if player.state == PlayerScript.State.DEAD or player.state == PlayerScript.State.WIN:
+			_handle_press(true, event.position)
+			get_viewport().set_input_as_handled()
 
 func _handle_press(pressed: bool, pos: Vector2) -> void:
 	if pressed:

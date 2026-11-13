@@ -33,8 +33,8 @@ func build(level_cfg, theme: Dictionary) -> Vector3:
 	var segments := int(ceil(cfg.track_length / SEGMENT_LEN))
 	finish_z = -cfg.track_length
 
-	# Start platform (safe)
-	_add_platform(Vector3(0, 0, 2.0), cfg.track_width + 1.5, 6.0, false)
+	# Start platform (safe + collides so the ball doesn't fall through)
+	_add_platform(Vector3(0, 0, 2.0), cfg.track_width + 1.5, 6.0, true)
 	_add_edge_rails(0.0, 6.0, cfg.track_width + 1.5, 0.0)
 
 	var gem_budget: int = int(cfg.track_length / cfg.gem_spacing)
@@ -93,7 +93,8 @@ func build(level_cfg, theme: Dictionary) -> Vector3:
 	_add_platform(Vector3(x_center, 0.0, finish_z - 4.0), cfg.track_width + 2.0, 12.0, true)
 	_add_finish_gate(Vector3(x_center, 0.0, finish_z - 2.0), cfg.track_width + 1.5)
 
-	return Vector3(0, RADIUS_SPAWN, 3.2)
+	# Rest ball on top of the 0.35-thick start platform
+	return Vector3(0, 0.35 * 0.5 + RADIUS_SPAWN + 0.05, 3.2)
 
 const RADIUS_SPAWN := 0.42
 
