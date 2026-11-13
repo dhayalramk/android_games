@@ -17,7 +17,7 @@ var _skin_btns: Array = []
 var _level_row: HBoxContainer
 var _toast: Label
 var _toast_timer: float = 0.0
-var _hero_orb: ColorRect
+var _hero_orb: Control
 var _play_lock: bool = false
 
 func setup(p) -> void:
@@ -227,12 +227,23 @@ func _build() -> void:
 	rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	teaser_col.add_child(rail)
 	_hero_orb = ColorRect.new()
-	_hero_orb.custom_minimum_size = Vector2(36, 36)
+	_hero_orb.custom_minimum_size = Vector2(40, 40)
 	_hero_orb.color = Color(0.45, 0.92, 1.0, 0.95)
 	_hero_orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Rounded “ball” silhouette via StyleBox on a Panel overlay
+	var orb_panel := Panel.new()
+	orb_panel.custom_minimum_size = Vector2(40, 40)
+	orb_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var orb_style := StyleBoxFlat.new()
+	orb_style.bg_color = Color(0.45, 0.92, 1.0, 1.0)
+	orb_style.set_corner_radius_all(20)
+	orb_style.shadow_color = Color(0.3, 0.8, 1.0, 0.55)
+	orb_style.shadow_size = 10
+	orb_panel.add_theme_stylebox_override("panel", orb_style)
+	_hero_orb = orb_panel  # reuse pulse target
 	var orb_wrap := CenterContainer.new()
 	orb_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	orb_wrap.add_child(_hero_orb)
+	orb_wrap.add_child(orb_panel)
 	teaser_col.add_child(orb_wrap)
 	var teaser_sub := Label.new()
 	teaser_sub.text = "Turbo · Gems · Supernova · Solo Rank"
@@ -282,7 +293,12 @@ func refresh() -> void:
 		var owned: bool = progress.is_skin_unlocked(i)
 		var selected: bool = progress.selected_skin == i
 		var tag := "EQUIPPED" if selected else ("OWNED" if owned else "◆%d" % int(s["cost"]))
-		_skin_btns[i].text = "%s\n%s" % [str(s["name"]).substr(0, 10), tag]
+		var short_name := str(s["name"])
+		# Keep garage labels readable on phone cards
+		if short_name.length() > 9:
+			short_name = short_name.substr(0, 8) + "…"
+		_skin_btns[i].text = "%s\n%s" % [short_name, tag]
+		_skin_btns[i].add_theme_font_size_override("font_size", 12)
 
 	for c in _level_row.get_children():
 		c.queue_free()
