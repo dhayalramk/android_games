@@ -21,18 +21,55 @@ static func for_level(lvl: int):
 	var t: float = float(cfg.level - 1)
 
 	cfg.title = _title_for(cfg.level)
-	# Gentle onboarding, then ramp hard for solo-leveling dopamine
-	cfg.track_length = clampf(65.0 + t * 16.0, 65.0, 250.0)
-	cfg.track_width = clampf(6.8 - t * 0.16, 3.6, 6.8)
-	cfg.base_speed = clampf(11.5 + t * 1.15, 11.5, 32.0)
-	cfg.gem_spacing = clampf(7.5 - t * 0.2, 3.8, 7.5)
-	cfg.gap_chance = 0.0 if cfg.level < 3 else clampf(0.04 + (t - 2.0) * 0.03, 0.0, 0.38)
-	cfg.curve_strength = 0.0 if cfg.level < 2 else clampf((t - 0.5) * 0.5, 0.4, 5.8)
-	cfg.obstacle_count = 0 if cfg.level == 1 else mini(1 + int(t * 1.1), 26)
-	cfg.boost_count = mini(1 + int(t / 2.0), 8)
-	cfg.spinner_count = 0 if cfg.level < 4 else mini(int((t - 2.0) * 0.85), 12)
-	cfg.theme_index = mini(int(t / 3.0), 3)
-	cfg.finish_bonus = 100 + cfg.level * 45
+	# Customer-first curve: Level 1 = ~20s guaranteed-feel win, then ramp
+	if cfg.level == 1:
+		cfg.track_length = 52.0
+		cfg.track_width = 7.2
+		cfg.base_speed = 11.0
+		cfg.gem_spacing = 4.2
+		cfg.gap_chance = 0.0
+		cfg.curve_strength = 0.35  # gentle weave teach
+		cfg.obstacle_count = 0
+		cfg.boost_count = 2
+		cfg.spinner_count = 0
+		cfg.theme_index = 0
+		cfg.finish_bonus = 150
+	elif cfg.level == 2:
+		cfg.track_length = 68.0
+		cfg.track_width = 6.6
+		cfg.base_speed = 12.0
+		cfg.gem_spacing = 5.0
+		cfg.gap_chance = 0.0
+		cfg.curve_strength = 0.9
+		cfg.obstacle_count = 2
+		cfg.boost_count = 2
+		cfg.spinner_count = 0
+		cfg.theme_index = 0
+		cfg.finish_bonus = 180
+	elif cfg.level == 3:
+		cfg.track_length = 80.0
+		cfg.track_width = 6.2
+		cfg.base_speed = 12.8
+		cfg.gem_spacing = 5.2
+		cfg.gap_chance = 0.06
+		cfg.curve_strength = 1.4
+		cfg.obstacle_count = 4
+		cfg.boost_count = 2
+		cfg.spinner_count = 0
+		cfg.theme_index = 0
+		cfg.finish_bonus = 210
+	else:
+		cfg.track_length = clampf(65.0 + t * 16.0, 65.0, 250.0)
+		cfg.track_width = clampf(6.8 - t * 0.16, 3.6, 6.8)
+		cfg.base_speed = clampf(11.5 + t * 1.15, 11.5, 32.0)
+		cfg.gem_spacing = clampf(7.5 - t * 0.2, 3.8, 7.5)
+		cfg.gap_chance = 0.0 if cfg.level < 3 else clampf(0.04 + (t - 2.0) * 0.03, 0.0, 0.38)
+		cfg.curve_strength = 0.0 if cfg.level < 2 else clampf((t - 0.5) * 0.5, 0.4, 5.8)
+		cfg.obstacle_count = mini(1 + int(t * 1.1), 26)
+		cfg.boost_count = mini(1 + int(t / 2.0), 8)
+		cfg.spinner_count = 0 if cfg.level < 4 else mini(int((t - 2.0) * 0.85), 12)
+		cfg.theme_index = mini(int(t / 3.0), 3)
+		cfg.finish_bonus = 100 + cfg.level * 45
 	return cfg
 
 static func _title_for(lvl: int) -> String:

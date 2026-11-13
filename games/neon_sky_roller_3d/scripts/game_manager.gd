@@ -59,6 +59,11 @@ var horizon_glow2: MeshInstance3D
 var skyline: Node3D
 var speed_lines: Control
 var _cam_bank: float = 0.0
+var coach_step: int = 0  # 0 steer, 1 turbo, 2 finish, 3 done
+var coach_active: bool = false
+var auto_roll_timer: float = -1.0
+var float_layer: Control
+var clear_flash: ColorRect
 
 func _ready() -> void:
 	progress = ProgressScript.new()
@@ -79,6 +84,7 @@ func _ready() -> void:
 	add_child(sfx)
 	_setup_speed_hud()
 	_setup_home_button()
+	_setup_juice_layer()
 	_polish_hud()
 	_setup_sky()
 	_build_world_dressing()
@@ -144,6 +150,39 @@ func _setup_speed_hud() -> void:
 	turbo_hint.offset_bottom = 196
 	turbo_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(turbo_hint)
+
+func _setup_juice_layer() -> void:
+	float_layer = Control.new()
+	float_layer.name = "FloatLayer"
+	float_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	float_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(float_layer)
+	clear_flash = ColorRect.new()
+	clear_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	clear_flash.color = Color(1, 0.95, 0.7, 0)
+	clear_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(clear_flash)
+
+func _popup_float(text: String, color: Color = Color(1, 1, 1)) -> void:
+	if float_layer == null:
+		return
+	var lab := Label.new()
+	lab.text = text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UI.label_outline(lab, color, 28, Color(0, 0, 0, 0.7), 8)
+	lab.set_anchors_preset(Control.PRESET_CENTER)
+	lab.offset_left = -120
+	lab.offset_right = 120
+	lab.offset_top = 40
+	lab.offset_bottom = 90
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	float_layer.add_child(lab)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lab, "offset_top", -80.0, 0.7).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lab, "offset_bottom", -30.0, 0.7).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lab, "modulate:a", 0.0, 0.7).set_delay(0.25)
+	tw.chain().tween_callback(lab.queue_free)
 
 func _setup_home_button() -> void:
 	home_btn = Button.new()
@@ -351,15 +390,47 @@ func _start_level(lvl: int) -> void:
 	banner_sub.text = "%s  %s" % [cfg.title, star_txt]
 	banner_timer = 1.45
 	banner.modulate.a = 1.0
-	hint_label.text = "Drag ←→ steer · ↑ turbo · ↓ brake"
-	hint_label.visible = true
 	fever_label.visible = false
 	if turbo_hint:
 		turbo_hint.modulate.a = 0.0
+	_begin_coach_for_level()
+	# First-time players: auto-roll so they feel speed within 1s
+	auto_roll_timer = 0.85 if (level <= 2 and progress.total_clears < 2) else -1.0
 
 	camera_rig.global_position = player.global_position + cam_offset
 	camera.fov = base_fov
 	camera.look_at(player.global_position + Vector3(0, 0.5, -4), Vector3.UP)
+
+func _begin_coach_for_level() -> void:
+	coach_active = (not progress.coach_done) and level <= 2
+	if not coach_active:
+		hint_label.text = "Drag ←→ steer · ↑ turbo · ↓ brake"
+		hint_label.visible = true
+		coach_step = 3
+		return
+	coach_step = 0
+	hint_label.visible = true
+	hint_label.text = "Hold & drag ← → to steer"
+	UI.label_outline(hint_label, Color(1, 0.95, 0.7), 22, Color(0, 0, 0, 0.75), 7)
+
+func _advance_coach() -> void:
+	if not coach_active:
+		return
+	match coach_step:
+		0:
+			coach_step = 1
+			hint_label.text = "Slide UP for TURBO · DOWN to brake"
+			hint_label.visible = true
+		1:
+			coach_step = 2
+			hint_label.text = "Grab gems · Hit the finish gate!"
+			hint_label.visible = true
+		2:
+			coach_step = 3
+			coach_active = false
+			progress.coach_done = true
+			progress.save()
+			hint_label.visible = false
 
 func _apply_theme(theme: Dictionary) -> void:
 	var env := world_env.environment
@@ -479,13 +550,27 @@ func _process(delta: float) -> void:
 			if banner_timer <= 0.0:
 				banner.visible = false
 
+	if auto_roll_timer >= 0.0 and player.state == PlayerScript.State.READY:
+		auto_roll_timer -= delta
+		if auto_roll_timer <= 0.0:
+			player.start_rolling()
+			started = true
+			banner_timer = minf(banner_timer, 0.25)
+			auto_roll_timer = -1.0
+
 	if player.throttle > 0.4:
 		used_turbo = true
+		if coach_active and coach_step == 1:
+			_advance_coach()
+	if coach_active and coach_step == 0 and absf(player.steer_input) > 0.35:
+		_advance_coach()
 
 	player.update_ball(delta)
 	_update_camera(delta)
 	_update_streak_ui()
 	_update_speed_hud(delta)
+	if clear_flash and clear_flash.color.a > 0.0:
+		clear_flash.color.a = maxf(0.0, clear_flash.color.a - delta * 1.6)
 	fill_light.global_position = player.global_position + Vector3(0, 3.2, 1.2)
 	fill_light.light_color = Color(1.0, 0.55, 0.2) if player.is_supernova else Color(0.45, 0.75, 1.0)
 	fill_light.light_energy = 3.6 if player.is_supernova else 2.1
@@ -602,12 +687,15 @@ func _on_gem(value: int, streak: int) -> void:
 	_vibrate(12)
 	if sfx:
 		sfx.gem(streak)
-	hint_label.visible = true
-	hint_label.text = "COMBO x%d" % mini(streak, 8)
-	get_tree().create_timer(0.5).timeout.connect(func():
-		if hint_label.text.begins_with("COMBO"):
-			hint_label.visible = false
-	)
+	var combo: int = mini(streak, 8)
+	_popup_float("+%d" % value if combo < 2 else "COMBO x%d  +%d" % [combo, value], Color(0.45, 1.0, 0.95))
+	if combo >= 2:
+		hint_label.visible = true
+		hint_label.text = "COMBO x%d" % combo
+		get_tree().create_timer(0.55).timeout.connect(func():
+			if hint_label.text.begins_with("COMBO"):
+				hint_label.visible = false
+		)
 
 func _on_boost_taken(_pad: Node3D) -> void:
 	player.hit_boost()
@@ -618,12 +706,9 @@ func _on_boost() -> void:
 	_vibrate(35)
 	if sfx:
 		sfx.boost()
-	hint_label.visible = true
-	hint_label.text = "BOOST!"
-	get_tree().create_timer(0.45).timeout.connect(func():
-		if hint_label.text == "BOOST!":
-			hint_label.visible = false
-	)
+	_popup_float("BOOST!", Color(1.0, 0.85, 0.3))
+	if coach_active and coach_step <= 1:
+		_advance_coach()
 
 func _on_hazard(_obs: Node3D) -> void:
 	if player.is_supernova:
@@ -664,7 +749,18 @@ func _on_finish_gate() -> void:
 	player.reach_finish()
 
 func _on_finished() -> void:
+	if coach_active or not progress.coach_done:
+		coach_step = 3
+		coach_active = false
+		progress.coach_done = true
+		progress.save()
 	score += cfg.finish_bonus
+	# First clear ever: gift gems so garage feels reachable
+	if not progress.first_session_gem_bonus_given:
+		progress.gems += 40
+		progress.first_session_gem_bonus_given = true
+		progress.save()
+		_popup_float("FIRST CLEAR +◆40", Color(1.0, 0.85, 0.4))
 	var awards: Dictionary = progress.record_clear(level, score, run_gems, used_supernova, used_turbo)
 	_update_hud()
 	var star_txt := ""
@@ -672,16 +768,24 @@ func _on_finished() -> void:
 		star_txt += "★" if i < int(awards["stars"]) else "☆"
 	banner.visible = true
 	banner_title.text = "LEVEL CLEAR  %s" % star_txt
-	var sub := "+◆%d  XP+%d  ·  Tap → L%d" % [int(awards["clear_gems"]), int(awards["xp"]), level + 1]
+	var lines: PackedStringArray = []
+	lines.append("+◆%d   XP +%d   →  Level %d" % [int(awards["clear_gems"]), int(awards["xp"]), level + 1])
 	if bool(awards.get("rank_up", false)):
-		sub += "  ·  RANK UP!"
+		lines.append("★ RANK UP!  You’re Solo Rank %d" % progress.rank)
 	if int(awards.get("mission_gems", 0)) > 0:
-		sub += "  ·  Mission +◆%d" % int(awards["mission_gems"])
-	sub += "\n%s" % progress.reason_to_return()
-	banner_sub.text = sub
+		lines.append("Daily mission bonus +◆%d" % int(awards["mission_gems"]))
+	if level == 1:
+		lines.append("Nice! Level 2 adds gentle curves — keep rolling.")
+	else:
+		lines.append(progress.reason_to_return())
+	lines.append("Tap anywhere for next")
+	banner_sub.text = "\n".join(lines)
 	banner_timer = 99.0
 	banner.modulate.a = 1.0
 	camera_shake = 0.22
+	if clear_flash:
+		clear_flash.color = Color(1.0, 0.95, 0.7, 0.45)
+	_popup_float("CLEAR!", Color(1.0, 0.9, 0.5))
 	_vibrate(120)
 	if sfx:
 		sfx.clear()

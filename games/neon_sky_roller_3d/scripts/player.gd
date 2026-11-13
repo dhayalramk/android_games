@@ -13,8 +13,8 @@ enum State { READY, ROLLING, DEAD, WIN }
 
 const RADIUS := 0.42
 const GRAVITY := 34.0
-const STEER_RESPONSIVENESS := 22.0
-const MAX_LANE_SPEED := 14.0
+const STEER_RESPONSIVENESS := 26.0
+const MAX_LANE_SPEED := 16.0
 const SUPERNOVA_STREAK_TIME := 4.0
 const AIR_CONTROL := 0.65
 const START_GRACE := 1.1
@@ -208,7 +208,7 @@ func update_ball(delta: float) -> void:
 	var half: float = _track_half()
 	# Absolute lane target relative to moving track center
 	var desired_x: float = center_x + steer_input * half * 0.92
-	lane_x = lerpf(lane_x, desired_x, delta * 10.0)
+	lane_x = lerpf(lane_x, desired_x, delta * 12.5)
 	lane_x = clampf(lane_x, center_x - half * 1.05, center_x + half * 1.05)
 
 	var edge_dist: float = absf(global_position.x - center_x) / maxf(half, 0.1)

@@ -20,6 +20,8 @@ var daily_mission_day: int = -1
 var total_clears: int = 0
 var best_score: int = 0
 var comeback_pending: bool = false
+var coach_done: bool = false
+var first_session_gem_bonus_given: bool = false
 
 const SKINS := [
 	{"name": "Cyber Neon", "cost": 0, "albedo": Color(0.8, 0.92, 1.0), "emission": Color(0.25, 0.75, 1.0), "energy": 1.8},
@@ -65,6 +67,8 @@ func load_save() -> void:
 	daily_mission_day = int(f.get_value("progress", "daily_mission_day", -1))
 	total_clears = int(f.get_value("progress", "total_clears", 0))
 	best_score = int(f.get_value("progress", "best_score", 0))
+	coach_done = bool(f.get_value("progress", "coach_done", false))
+	first_session_gem_bonus_given = bool(f.get_value("progress", "first_session_gem_bonus_given", false))
 	_on_open_day()
 
 func save() -> void:
@@ -85,6 +89,8 @@ func save() -> void:
 	f.set_value("progress", "daily_mission_day", daily_mission_day)
 	f.set_value("progress", "total_clears", total_clears)
 	f.set_value("progress", "best_score", best_score)
+	f.set_value("progress", "coach_done", coach_done)
+	f.set_value("progress", "first_session_gem_bonus_given", first_session_gem_bonus_given)
 	f.save(SAVE_PATH)
 
 func _on_open_day() -> void:

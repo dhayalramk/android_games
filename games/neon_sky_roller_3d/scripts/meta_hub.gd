@@ -196,6 +196,7 @@ func _build() -> void:
 	col.add_child(_level_row)
 
 	var tip := Label.new()
+	tip.name = "TipLabel"
 	tip.text = "Come back daily · Master ★★★ · Unlock legendary balls"
 	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -230,6 +231,14 @@ func refresh() -> void:
 	_daily_btn.disabled = not progress.can_claim_daily()
 	_daily_btn.text = "✦  CLAIM DAILY GIFT" if progress.can_claim_daily() else "✓  CLAIMED  ·  streak %d" % progress.login_streak
 	_play_btn.text = "▶  PLAY LEVEL %d" % progress.max_unlocked
+	var tip: Label = find_child("TipLabel", true, false) as Label
+	if tip:
+		if progress.total_clears == 0:
+			tip.text = "New here? Level 1 is a short sky run — grab gems, hit the gate."
+		elif progress.total_clears < 3:
+			tip.text = "You’re leveling up — claim Daily Gift, then chase ★★★."
+		else:
+			tip.text = "Come back daily · Master ★★★ · Unlock legendary balls"
 
 	for i in range(_skin_btns.size()):
 		var s: Dictionary = progress.SKINS[i]

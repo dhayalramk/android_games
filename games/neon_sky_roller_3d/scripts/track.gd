@@ -88,11 +88,16 @@ func build(level_cfg, theme: Dictionary) -> Vector3:
 				_add_neon_arch(Vector3(x_center, 0.0, seg_z), width)
 			z -= SEGMENT_LEN
 
-		# Gems weave but stay collectible
+		# Gems weave but stay collectible — denser “gem highway” on early levels
 		if gems_placed < gem_budget and i > 0 and not is_gap:
-			var gx: float = x_center + sin(i * 0.9) * (width * 0.22)
+			var weave: float = 0.28 if int(cfg.level) <= 2 else 0.22
+			var gx: float = x_center + sin(i * 0.9) * (width * weave)
 			_add_gem(Vector3(gx, 0.9, z + SEGMENT_LEN * 0.5))
 			gems_placed += 1
+			# Extra gem for Level 1 dopamine trail
+			if int(cfg.level) == 1 and i % 2 == 0:
+				_add_gem(Vector3(x_center - sin(i * 0.9) * (width * 0.18), 0.9, z + SEGMENT_LEN * 0.25))
+				gems_placed += 1
 
 		if boosts_left > 0 and i > 2 and i % maxi(segments / maxi(int(cfg.boost_count), 1), 3) == 0:
 			_add_boost(Vector3(x_center, 0.06, z + SEGMENT_LEN * 0.55), width * 0.5)
