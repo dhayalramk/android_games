@@ -1,0 +1,3 @@
+@echo off
+echo Starting Neon Sky Roller 3D in desktop test mode...
+call "%~dp0godot.bat" --path "%~dp0..\games\neon_sky_roller_3d"
