@@ -8,6 +8,7 @@ signal finish_reached
 
 const SpinnerScript = preload("res://scripts/spinner.gd")
 const SEGMENT_LEN := 8.0
+const RADIUS_SPAWN := 0.42
 
 var cfg
 var finish_z: float = -80.0
@@ -21,6 +22,19 @@ func clear_track() -> void:
 		c.queue_free()
 	_pickups.clear()
 
+func center_at_z(z: float) -> float:
+	if cfg == null:
+		return 0.0
+	var progress: float = clampf((-z) / maxf(float(cfg.track_length), 1.0), 0.0, 1.0)
+	return sin(progress * TAU * (0.35 + float(cfg.curve_strength) * 0.08)) * float(cfg.curve_strength)
+
+func width_at_z(z: float) -> float:
+	if cfg == null:
+		return 6.0
+	var progress: float = clampf((-z) / maxf(float(cfg.track_length), 1.0), 0.0, 1.0)
+	var width: float = float(cfg.track_width) * (1.0 - progress * 0.08 * float(cfg.level > 4))
+	return maxf(width, 3.4)
+
 func build(level_cfg, theme: Dictionary) -> Vector3:
 	clear_track()
 	cfg = level_cfg
@@ -33,9 +47,10 @@ func build(level_cfg, theme: Dictionary) -> Vector3:
 	var segments := int(ceil(cfg.track_length / SEGMENT_LEN))
 	finish_z = -cfg.track_length
 
-	# Start platform (safe + collides so the ball doesn't fall through)
-	_add_platform(Vector3(0, 0, 2.0), cfg.track_width + 1.5, 6.0, true)
-	_add_edge_rails(0.0, 6.0, cfg.track_width + 1.5, 0.0)
+	# Long safe runway
+	_add_platform(Vector3(0, 0, 2.0), cfg.track_width + 2.0, 8.0, true)
+	_add_edge_rails(0.0, 8.0, cfg.track_width + 2.0, 2.0)
+	_add_support(0.0, 2.0)
 
 	var gem_budget: int = int(cfg.track_length / cfg.gem_spacing)
 	var gems_placed: int = 0
@@ -45,64 +60,65 @@ func build(level_cfg, theme: Dictionary) -> Vector3:
 
 	for i in range(segments):
 		var progress: float = float(i) / float(maxi(segments - 1, 1))
-		x_center = sin(progress * TAU * (0.35 + cfg.curve_strength * 0.08)) * cfg.curve_strength
+		x_center = center_at_z(-(i + 0.5) * SEGMENT_LEN)
 		var width: float = float(cfg.track_width) * (1.0 - progress * 0.08 * float(cfg.level > 4))
-		width = maxf(width, 3.2)
+		width = maxf(width, 3.4)
 
 		var is_gap := false
-		if i > 1 and i < segments - 2 and _rng.randf() < float(cfg.gap_chance):
+		# Never gap the first 3 segments; keep landings generous
+		if i > 3 and i < segments - 3 and _rng.randf() < float(cfg.gap_chance):
 			is_gap = true
 
 		if is_gap:
-			# Jump pad before gap
-			_add_ramp(Vector3(x_center, 0.0, z - 1.0), width * 0.9)
-			z -= SEGMENT_LEN * 0.85
-			# Landing
-			_add_platform(Vector3(x_center, 0.0, z - SEGMENT_LEN * 0.35), width, SEGMENT_LEN * 0.7, true)
-			_add_edge_rails(x_center, SEGMENT_LEN * 0.7, width, z - SEGMENT_LEN * 0.35)
+			_add_ramp(Vector3(x_center, 0.0, z - 1.2), width * 0.95)
+			z -= SEGMENT_LEN * 0.9
+			var land_z: float = z - SEGMENT_LEN * 0.4
+			_add_platform(Vector3(x_center, 0.0, land_z), width + 0.4, SEGMENT_LEN * 0.85, true)
+			_add_edge_rails(x_center, SEGMENT_LEN * 0.85, width + 0.4, land_z)
+			_add_support(x_center, land_z)
 			z -= SEGMENT_LEN
 		else:
-			_add_platform(Vector3(x_center, 0.0, z - SEGMENT_LEN * 0.5), width, SEGMENT_LEN, true)
-			_add_edge_rails(x_center, SEGMENT_LEN, width, z - SEGMENT_LEN * 0.5)
+			var seg_z: float = z - SEGMENT_LEN * 0.5
+			_add_platform(Vector3(x_center, 0.0, seg_z), width, SEGMENT_LEN + 0.15, true)
+			_add_edge_rails(x_center, SEGMENT_LEN + 0.15, width, seg_z)
+			if i % 2 == 0:
+				_add_support(x_center, seg_z)
 			z -= SEGMENT_LEN
 
-		# Gems along center / weave
+		# Gems weave but stay collectible
 		if gems_placed < gem_budget and i > 0 and not is_gap:
-			var gx: float = x_center + sin(i * 0.9) * (width * 0.28)
-			_add_gem(Vector3(gx, 0.85, z + SEGMENT_LEN * 0.5))
+			var gx: float = x_center + sin(i * 0.9) * (width * 0.22)
+			_add_gem(Vector3(gx, 0.9, z + SEGMENT_LEN * 0.5))
 			gems_placed += 1
 
-		# Boost pads
 		if boosts_left > 0 and i > 2 and i % maxi(segments / maxi(int(cfg.boost_count), 1), 3) == 0:
-			_add_boost(Vector3(x_center, 0.06, z + SEGMENT_LEN * 0.55), width * 0.55)
+			_add_boost(Vector3(x_center, 0.06, z + SEGMENT_LEN * 0.55), width * 0.5)
 			boosts_left -= 1
 
-		# Static gates / blocks
-		if obstacles_left > 0 and i > 2 and i < segments - 2 and _rng.randf() < 0.45:
+		# Side hazards only — keep center lane open for flow
+		if obstacles_left > 0 and i > 3 and i < segments - 2 and _rng.randf() < 0.4:
 			var side: float = -1.0 if _rng.randf() < 0.5 else 1.0
-			var ox: float = x_center + side * (width * 0.28)
-			_add_obstacle(Vector3(ox, 0.7, z + SEGMENT_LEN * 0.4), false)
+			var ox: float = x_center + side * (width * 0.36)
+			_add_obstacle(Vector3(ox, 0.75, z + SEGMENT_LEN * 0.4), false)
 			obstacles_left -= 1
 
-		# Spinners
-		if spinners_left > 0 and i > 3 and i < segments - 2 and _rng.randf() < 0.4:
-			_add_obstacle(Vector3(x_center, 0.9, z + SEGMENT_LEN * 0.25), true)
+		if spinners_left > 0 and i > 5 and i < segments - 3 and _rng.randf() < 0.35:
+			var side2: float = -1.0 if _rng.randf() < 0.5 else 1.0
+			_add_obstacle(Vector3(x_center + side2 * width * 0.15, 0.95, z + SEGMENT_LEN * 0.25), true)
 			spinners_left -= 1
 
 	# Finish runway
-	_add_platform(Vector3(x_center, 0.0, finish_z - 4.0), cfg.track_width + 2.0, 12.0, true)
-	_add_finish_gate(Vector3(x_center, 0.0, finish_z - 2.0), cfg.track_width + 1.5)
+	_add_platform(Vector3(x_center, 0.0, finish_z - 4.0), cfg.track_width + 2.4, 14.0, true)
+	_add_edge_rails(x_center, 14.0, cfg.track_width + 2.4, finish_z - 4.0)
+	_add_finish_gate(Vector3(x_center, 0.0, finish_z - 2.0), cfg.track_width + 1.8)
 
-	# Rest ball on top of the 0.35-thick start platform
-	return Vector3(0, 0.35 * 0.5 + RADIUS_SPAWN + 0.05, 3.2)
-
-const RADIUS_SPAWN := 0.42
+	return Vector3(0, 0.35 * 0.5 + RADIUS_SPAWN + 0.08, 3.5)
 
 func _track_material(emissive: bool = false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = track_color
-	m.metallic = 0.65
-	m.roughness = 0.35
+	m.metallic = 0.7
+	m.roughness = 0.28
 	if emissive:
 		m.emission_enabled = true
 		m.emission = edge_color
@@ -125,17 +141,33 @@ func _add_platform(pos: Vector3, width: float, length: float, collides: bool) ->
 	# Center neon strip
 	var strip := MeshInstance3D.new()
 	var sb := BoxMesh.new()
-	sb.size = Vector3(maxf(0.18, width * 0.06), 0.05, length * 0.98)
+	sb.size = Vector3(maxf(0.16, width * 0.05), 0.06, length * 0.98)
 	strip.mesh = sb
 	strip.position = Vector3(0, 0.2, 0)
 	var sm := StandardMaterial3D.new()
 	sm.albedo_color = edge_color
 	sm.emission_enabled = true
 	sm.emission = edge_color
-	sm.emission_energy_multiplier = 3.2
+	sm.emission_energy_multiplier = 4.0
 	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	strip.material_override = sm
 	body.add_child(strip)
+
+	# Soft under-glow slab
+	var glow := MeshInstance3D.new()
+	var gb := BoxMesh.new()
+	gb.size = Vector3(width * 0.92, 0.08, length * 0.95)
+	glow.mesh = gb
+	glow.position = Vector3(0, -0.22, 0)
+	var gm := StandardMaterial3D.new()
+	gm.albedo_color = Color(edge_color.r, edge_color.g, edge_color.b, 0.35)
+	gm.emission_enabled = true
+	gm.emission = edge_color
+	gm.emission_energy_multiplier = 1.2
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.material_override = gm
+	body.add_child(glow)
 
 	if collides:
 		var col := CollisionShape3D.new()
@@ -146,18 +178,36 @@ func _add_platform(pos: Vector3, width: float, length: float, collides: bool) ->
 
 	add_child(body)
 
+func _add_support(x_center: float, z_center: float) -> void:
+	var pillar := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.18
+	cyl.bottom_radius = 0.35
+	cyl.height = 14.0
+	pillar.mesh = cyl
+	pillar.position = Vector3(x_center, -7.2, z_center)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.08, 0.08, 0.12)
+	m.metallic = 0.8
+	m.roughness = 0.4
+	m.emission_enabled = true
+	m.emission = edge_color * 0.35
+	m.emission_energy_multiplier = 0.6
+	pillar.material_override = m
+	add_child(pillar)
+
 func _add_edge_rails(x_center: float, length: float, width: float, z_center: float) -> void:
 	for side in [-1.0, 1.0]:
 		var rail := MeshInstance3D.new()
 		var box := BoxMesh.new()
-		box.size = Vector3(0.12, 0.22, length)
+		box.size = Vector3(0.14, 0.28, length)
 		rail.mesh = box
-		rail.position = Vector3(x_center + side * (width * 0.5), 0.28, z_center)
+		rail.position = Vector3(x_center + side * (width * 0.5), 0.3, z_center)
 		var m := StandardMaterial3D.new()
 		m.albedo_color = edge_color
 		m.emission_enabled = true
 		m.emission = edge_color
-		m.emission_energy_multiplier = 2.4
+		m.emission_energy_multiplier = 3.0
 		rail.material_override = m
 		add_child(rail)
 
@@ -165,20 +215,21 @@ func _add_ramp(pos: Vector3, width: float) -> void:
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	body.position = pos
-	body.rotation_degrees = Vector3(-18, 0, 0)
+	body.rotation_degrees = Vector3(-16, 0, 0)
 
 	var mesh_i := MeshInstance3D.new()
 	var box := BoxMesh.new()
-	box.size = Vector3(width, 0.3, 3.5)
+	box.size = Vector3(width, 0.3, 4.0)
 	mesh_i.mesh = box
 	var m := _track_material(true)
-	m.emission = Color(1.0, 0.9, 0.3)
+	m.emission = Color(1.0, 0.9, 0.35)
+	m.emission_energy_multiplier = 3.5
 	mesh_i.material_override = m
 	body.add_child(mesh_i)
 
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(width, 0.3, 3.5)
+	shape.size = Vector3(width, 0.3, 4.0)
 	col.shape = shape
 	body.add_child(col)
 	add_child(body)
@@ -194,20 +245,21 @@ func _add_gem(pos: Vector3) -> void:
 
 	var mesh_i := MeshInstance3D.new()
 	var prism := PrismMesh.new()
-	prism.size = Vector3(0.45, 0.55, 0.45)
+	prism.size = Vector3(0.5, 0.6, 0.5)
 	mesh_i.mesh = prism
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.4, 1.0, 0.95)
+	m.albedo_color = Color(0.45, 1.0, 0.95)
 	m.emission_enabled = true
-	m.emission = Color(0.3, 1.0, 0.9)
-	m.emission_energy_multiplier = 4.0
-	m.metallic = 0.4
+	m.emission = Color(0.35, 1.0, 0.92)
+	m.emission_energy_multiplier = 5.0
+	m.metallic = 0.55
+	m.roughness = 0.15
 	mesh_i.material_override = m
 	area.add_child(mesh_i)
 
 	var col := CollisionShape3D.new()
 	var shape := SphereShape3D.new()
-	shape.radius = 0.55
+	shape.radius = 0.6
 	col.shape = shape
 	area.add_child(col)
 
@@ -224,20 +276,20 @@ func _add_boost(pos: Vector3, width: float) -> void:
 
 	var mesh_i := MeshInstance3D.new()
 	var box := BoxMesh.new()
-	box.size = Vector3(width, 0.08, 1.6)
+	box.size = Vector3(width, 0.08, 1.8)
 	mesh_i.mesh = box
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(1.0, 0.85, 0.2)
+	m.albedo_color = Color(1.0, 0.88, 0.25)
 	m.emission_enabled = true
-	m.emission = Color(1.0, 0.8, 0.1)
-	m.emission_energy_multiplier = 5.0
+	m.emission = Color(1.0, 0.85, 0.15)
+	m.emission_energy_multiplier = 6.0
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mesh_i.material_override = m
 	area.add_child(mesh_i)
 
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(width, 0.8, 1.6)
+	shape.size = Vector3(width, 0.9, 1.8)
 	col.shape = shape
 	area.add_child(col)
 
@@ -258,33 +310,33 @@ func _add_obstacle(pos: Vector3, spinning: bool) -> void:
 	var mesh_i := MeshInstance3D.new()
 	if spinning:
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.18
-		cyl.bottom_radius = 0.18
-		cyl.height = 3.2
+		cyl.top_radius = 0.16
+		cyl.bottom_radius = 0.16
+		cyl.height = 2.6
 		mesh_i.mesh = cyl
 		mesh_i.rotation_degrees = Vector3(0, 0, 90)
 	else:
 		var box := BoxMesh.new()
-		box.size = Vector3(1.1, 1.4, 0.7)
+		box.size = Vector3(0.95, 1.35, 0.65)
 		mesh_i.mesh = box
 
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.85, 0.15, 0.35)
+	m.albedo_color = Color(0.9, 0.12, 0.38)
 	m.emission_enabled = true
-	m.emission = Color(1.0, 0.15, 0.35)
-	m.emission_energy_multiplier = 2.5
-	m.metallic = 0.5
+	m.emission = Color(1.0, 0.18, 0.4)
+	m.emission_energy_multiplier = 3.0
+	m.metallic = 0.55
 	mesh_i.material_override = m
 	area.add_child(mesh_i)
 
 	var col := CollisionShape3D.new()
 	if spinning:
 		var shape := BoxShape3D.new()
-		shape.size = Vector3(3.0, 0.45, 0.45)
+		shape.size = Vector3(2.5, 0.4, 0.4)
 		col.shape = shape
 	else:
 		var shape := BoxShape3D.new()
-		shape.size = Vector3(1.1, 1.4, 0.7)
+		shape.size = Vector3(0.95, 1.35, 0.65)
 		col.shape = shape
 	area.add_child(col)
 
@@ -303,40 +355,39 @@ func _add_finish_gate(pos: Vector3, width: float) -> void:
 	area.collision_mask = 2
 	area.set_meta("kind", "finish")
 
-	# Arch visuals
 	for side in [-1.0, 1.0]:
 		var pillar := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.2
-		cyl.bottom_radius = 0.25
-		cyl.height = 3.5
+		cyl.top_radius = 0.22
+		cyl.bottom_radius = 0.28
+		cyl.height = 3.8
 		pillar.mesh = cyl
 		pillar.position = Vector3(side * width * 0.45, 0.0, 0)
 		var m := StandardMaterial3D.new()
-		m.albedo_color = Color(0.6, 1.0, 0.5)
+		m.albedo_color = Color(0.55, 1.0, 0.55)
 		m.emission_enabled = true
-		m.emission = Color(0.4, 1.0, 0.5)
-		m.emission_energy_multiplier = 3.5
+		m.emission = Color(0.4, 1.0, 0.55)
+		m.emission_energy_multiplier = 4.5
 		pillar.material_override = m
 		area.add_child(pillar)
 
 	var beam := MeshInstance3D.new()
 	var box := BoxMesh.new()
-	box.size = Vector3(width * 0.9, 0.25, 0.25)
+	box.size = Vector3(width * 0.92, 0.28, 0.28)
 	beam.mesh = box
-	beam.position = Vector3(0, 1.6, 0)
+	beam.position = Vector3(0, 1.75, 0)
 	var bm := StandardMaterial3D.new()
-	bm.albedo_color = Color(0.7, 1.0, 0.6)
+	bm.albedo_color = Color(0.7, 1.0, 0.65)
 	bm.emission_enabled = true
-	bm.emission = Color(0.5, 1.0, 0.55)
-	bm.emission_energy_multiplier = 5.0
+	bm.emission = Color(0.55, 1.0, 0.6)
+	bm.emission_energy_multiplier = 6.0
 	bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	beam.material_override = bm
 	area.add_child(beam)
 
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(width, 3.5, 1.2)
+	shape.size = Vector3(width, 3.8, 1.4)
 	col.shape = shape
 	area.add_child(col)
 
@@ -357,7 +408,6 @@ func _on_pickup_body(body: Node3D, area: Area3D) -> void:
 		boost_taken.emit(area)
 		area.set_meta("kind", "used")
 		area.monitoring = false
-		# dim pad
 		for c in area.get_children():
 			if c is MeshInstance3D and c.material_override is StandardMaterial3D:
 				(c.material_override as StandardMaterial3D).emission_energy_multiplier = 0.4
@@ -371,13 +421,12 @@ func _on_finish_body(body: Node3D) -> void:
 		finish_reached.emit()
 
 func _process(delta: float) -> void:
-	# Spin floating gems
 	var alive: Array[Node3D] = []
 	for p in _pickups:
 		if not is_instance_valid(p):
 			continue
 		alive.append(p)
 		if str(p.get_meta("kind", "")) == "gem":
-			p.rotate_y(delta * 2.8)
-			p.position.y = 0.85 + sin(Time.get_ticks_msec() * 0.006 + p.position.z) * 0.12
+			p.rotate_y(delta * 3.2)
+			p.position.y = 0.9 + sin(Time.get_ticks_msec() * 0.006 + p.position.z) * 0.14
 	_pickups = alive

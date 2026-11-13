@@ -5,7 +5,7 @@ var level: int = 1
 var title: String = "Awakening"
 var track_length: float = 80.0
 var track_width: float = 6.0
-var base_speed: float = 14.0
+var base_speed: float = 12.0
 var gem_spacing: float = 8.0
 var gap_chance: float = 0.0
 var curve_strength: float = 0.0
@@ -21,17 +21,18 @@ static func for_level(lvl: int):
 	var t: float = float(cfg.level - 1)
 
 	cfg.title = _title_for(cfg.level)
-	cfg.track_length = clampf(70.0 + t * 18.0, 70.0, 260.0)
-	cfg.track_width = clampf(6.2 - t * 0.18, 3.4, 6.2)
-	cfg.base_speed = clampf(13.0 + t * 1.35, 13.0, 34.0)
-	cfg.gem_spacing = clampf(8.5 - t * 0.25, 4.0, 8.5)
-	cfg.gap_chance = clampf(0.02 + t * 0.035, 0.0, 0.42)
-	cfg.curve_strength = clampf(t * 0.55, 0.0, 6.5)
-	cfg.obstacle_count = mini(2 + int(t * 1.2), 28)
+	# Gentle onboarding, then ramp hard for solo-leveling dopamine
+	cfg.track_length = clampf(65.0 + t * 16.0, 65.0, 250.0)
+	cfg.track_width = clampf(6.8 - t * 0.16, 3.6, 6.8)
+	cfg.base_speed = clampf(11.5 + t * 1.15, 11.5, 32.0)
+	cfg.gem_spacing = clampf(7.5 - t * 0.2, 3.8, 7.5)
+	cfg.gap_chance = 0.0 if cfg.level < 3 else clampf(0.04 + (t - 2.0) * 0.03, 0.0, 0.38)
+	cfg.curve_strength = 0.0 if cfg.level < 2 else clampf((t - 0.5) * 0.5, 0.4, 5.8)
+	cfg.obstacle_count = 0 if cfg.level == 1 else mini(1 + int(t * 1.1), 26)
 	cfg.boost_count = mini(1 + int(t / 2.0), 8)
-	cfg.spinner_count = 0 if cfg.level < 3 else mini(int((t - 1.0) * 0.9), 14)
+	cfg.spinner_count = 0 if cfg.level < 4 else mini(int((t - 2.0) * 0.85), 12)
 	cfg.theme_index = mini(int(t / 3.0), 3)
-	cfg.finish_bonus = 100 + cfg.level * 40
+	cfg.finish_bonus = 100 + cfg.level * 45
 	return cfg
 
 static func _title_for(lvl: int) -> String:
@@ -67,41 +68,53 @@ static func theme_colors(theme_index: int) -> Dictionary:
 	match theme_index:
 		0: # Sunset Horizon
 			return {
-				"sky": Color(0.95, 0.45, 0.28),
-				"horizon": Color(0.35, 0.18, 0.45),
-				"fog": Color(0.55, 0.32, 0.42),
-				"track": Color(0.12, 0.1, 0.18),
-				"edge": Color(1.0, 0.55, 0.2),
-				"ambient": Color(0.55, 0.35, 0.4),
-				"light": Color(1.0, 0.75, 0.55),
+				"sky_top": Color(0.35, 0.22, 0.55),
+				"sky": Color(0.98, 0.52, 0.32),
+				"horizon": Color(1.0, 0.62, 0.38),
+				"fog": Color(0.72, 0.4, 0.45),
+				"ground": Color(0.18, 0.12, 0.28),
+				"track": Color(0.1, 0.08, 0.16),
+				"edge": Color(1.0, 0.55, 0.18),
+				"ambient": Color(0.65, 0.4, 0.45),
+				"light": Color(1.0, 0.78, 0.55),
+				"cloud": Color(1.0, 0.82, 0.7, 0.55),
 			}
 		1: # Cyber Midnight
 			return {
-				"sky": Color(0.08, 0.12, 0.35),
-				"horizon": Color(0.05, 0.35, 0.55),
-				"fog": Color(0.1, 0.2, 0.4),
-				"track": Color(0.06, 0.08, 0.14),
-				"edge": Color(0.2, 0.95, 1.0),
-				"ambient": Color(0.25, 0.4, 0.7),
-				"light": Color(0.55, 0.85, 1.0),
+				"sky_top": Color(0.02, 0.04, 0.14),
+				"sky": Color(0.08, 0.16, 0.42),
+				"horizon": Color(0.1, 0.55, 0.75),
+				"fog": Color(0.12, 0.28, 0.48),
+				"ground": Color(0.04, 0.06, 0.12),
+				"track": Color(0.05, 0.07, 0.12),
+				"edge": Color(0.25, 0.95, 1.0),
+				"ambient": Color(0.28, 0.45, 0.75),
+				"light": Color(0.55, 0.88, 1.0),
+				"cloud": Color(0.55, 0.75, 1.0, 0.4),
 			}
 		2: # Magma Veil
 			return {
-				"sky": Color(0.55, 0.08, 0.12),
-				"horizon": Color(0.9, 0.25, 0.05),
-				"fog": Color(0.4, 0.12, 0.08),
+				"sky_top": Color(0.2, 0.02, 0.06),
+				"sky": Color(0.65, 0.12, 0.1),
+				"horizon": Color(1.0, 0.35, 0.08),
+				"fog": Color(0.45, 0.14, 0.08),
+				"ground": Color(0.12, 0.04, 0.05),
 				"track": Color(0.12, 0.05, 0.06),
-				"edge": Color(1.0, 0.35, 0.1),
-				"ambient": Color(0.55, 0.2, 0.15),
-				"light": Color(1.0, 0.55, 0.3),
+				"edge": Color(1.0, 0.4, 0.12),
+				"ambient": Color(0.6, 0.22, 0.15),
+				"light": Color(1.0, 0.58, 0.32),
+				"cloud": Color(1.0, 0.45, 0.25, 0.45),
 			}
 		_: # Aurora Borealis
 			return {
-				"sky": Color(0.05, 0.22, 0.28),
-				"horizon": Color(0.15, 0.85, 0.55),
-				"fog": Color(0.12, 0.35, 0.4),
+				"sky_top": Color(0.02, 0.12, 0.18),
+				"sky": Color(0.06, 0.28, 0.32),
+				"horizon": Color(0.25, 0.95, 0.65),
+				"fog": Color(0.15, 0.4, 0.42),
+				"ground": Color(0.04, 0.1, 0.12),
 				"track": Color(0.05, 0.1, 0.12),
-				"edge": Color(0.35, 1.0, 0.75),
-				"ambient": Color(0.25, 0.55, 0.5),
-				"light": Color(0.65, 1.0, 0.85),
+				"edge": Color(0.4, 1.0, 0.78),
+				"ambient": Color(0.28, 0.58, 0.52),
+				"light": Color(0.65, 1.0, 0.88),
+				"cloud": Color(0.55, 1.0, 0.85, 0.42),
 			}

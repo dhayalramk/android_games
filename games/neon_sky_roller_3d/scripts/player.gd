@@ -12,16 +12,17 @@ signal near_miss
 enum State { READY, ROLLING, DEAD, WIN }
 
 const RADIUS := 0.42
-const GRAVITY := 38.0
-const STEER_RESPONSIVENESS := 18.0
-const MAX_STEER := 16.0
-const SUPERNOVA_STREAK_TIME := 4.5
-const AIR_CONTROL := 0.55
+const GRAVITY := 34.0
+const STEER_RESPONSIVENESS := 22.0
+const MAX_LANE_SPEED := 14.0
+const SUPERNOVA_STREAK_TIME := 4.0
+const AIR_CONTROL := 0.65
+const START_GRACE := 1.1
 
 var state: State = State.READY
-var base_speed: float = 14.0
-var speed: float = 14.0
-var steer_input: float = 0.0 # -1 .. 1 target lane bias
+var base_speed: float = 12.0
+var speed: float = 12.0
+var steer_input: float = 0.0 # -1 .. 1
 var lane_x: float = 0.0
 var track_half_width: float = 3.0
 var is_supernova: bool = false
@@ -30,6 +31,8 @@ var gem_streak: int = 0
 var boost_timer: float = 0.0
 var air_time: float = 0.0
 var spin: float = 0.0
+var grace_timer: float = 0.0
+var track_ref: Node3D = null
 var mesh: MeshInstance3D
 var trail: GPUParticles3D
 var aura: MeshInstance3D
@@ -40,6 +43,8 @@ func _ready() -> void:
 	_build_visuals()
 	collision_layer = 2
 	collision_mask = 1
+	floor_snap_length = 0.45
+	safe_margin = 0.08
 
 func _build_visuals() -> void:
 	var col := CollisionShape3D.new()
@@ -54,67 +59,69 @@ func _build_visuals() -> void:
 	sm.height = RADIUS * 2.0
 	mesh.mesh = sm
 	_mat = StandardMaterial3D.new()
-	_mat.albedo_color = Color(0.75, 0.9, 1.0)
+	_mat.albedo_color = Color(0.8, 0.92, 1.0)
 	_mat.metallic = 1.0
-	_mat.roughness = 0.08
+	_mat.roughness = 0.06
 	_mat.emission_enabled = true
-	_mat.emission = Color(0.2, 0.7, 1.0)
-	_mat.emission_energy_multiplier = 1.4
+	_mat.emission = Color(0.25, 0.75, 1.0)
+	_mat.emission_energy_multiplier = 1.8
 	mesh.material_override = _mat
 	add_child(mesh)
 
 	aura = MeshInstance3D.new()
 	var am := SphereMesh.new()
-	am.radius = RADIUS * 1.35
-	am.height = RADIUS * 2.7
+	am.radius = RADIUS * 1.4
+	am.height = RADIUS * 2.8
 	aura.mesh = am
 	_aura_mat = StandardMaterial3D.new()
 	_aura_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_aura_mat.albedo_color = Color(0.3, 0.85, 1.0, 0.18)
+	_aura_mat.albedo_color = Color(0.3, 0.85, 1.0, 0.22)
 	_aura_mat.emission_enabled = true
 	_aura_mat.emission = Color(0.3, 0.9, 1.0)
-	_aura_mat.emission_energy_multiplier = 0.8
+	_aura_mat.emission_energy_multiplier = 1.2
 	_aura_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	aura.material_override = _aura_mat
 	aura.visible = false
 	add_child(aura)
 
 	trail = GPUParticles3D.new()
-	trail.amount = 48
-	trail.lifetime = 0.45
+	trail.amount = 64
+	trail.lifetime = 0.5
 	trail.emitting = false
 	var proc := ParticleProcessMaterial.new()
-	proc.direction = Vector3(0, 0.2, 1)
-	proc.spread = 18.0
-	proc.initial_velocity_min = 1.0
-	proc.initial_velocity_max = 3.5
-	proc.gravity = Vector3(0, 1.5, 0)
-	proc.scale_min = 0.08
-	proc.scale_max = 0.22
-	proc.color = Color(0.4, 0.9, 1.0, 0.8)
+	proc.direction = Vector3(0, 0.15, 1)
+	proc.spread = 22.0
+	proc.initial_velocity_min = 1.2
+	proc.initial_velocity_max = 4.0
+	proc.gravity = Vector3(0, 1.2, 0)
+	proc.scale_min = 0.07
+	proc.scale_max = 0.2
+	proc.color = Color(0.45, 0.92, 1.0, 0.85)
 	trail.process_material = proc
 	var pmesh := SphereMesh.new()
-	pmesh.radius = 0.08
-	pmesh.height = 0.16
+	pmesh.radius = 0.07
+	pmesh.height = 0.14
 	trail.draw_pass_1 = pmesh
-	trail.position = Vector3(0, 0, 0.35)
+	trail.position = Vector3(0, 0, 0.4)
 	add_child(trail)
 
-func reset_for_level(start_pos: Vector3, cfg) -> void:
+func reset_for_level(start_pos: Vector3, cfg, track: Node3D = null) -> void:
 	state = State.READY
+	track_ref = track
 	global_position = start_pos
 	velocity = Vector3.ZERO
 	lane_x = start_pos.x
 	steer_input = 0.0
 	base_speed = cfg.base_speed
 	speed = cfg.base_speed
-	track_half_width = cfg.track_width * 0.5 - RADIUS - 0.15
+	track_half_width = cfg.track_width * 0.5 - RADIUS - 0.2
 	is_supernova = false
 	safe_streak = 0.0
 	gem_streak = 0
 	boost_timer = 0.0
 	air_time = 0.0
 	spin = 0.0
+	grace_timer = START_GRACE
 	visible = true
 	mesh.visible = true
 	aura.visible = false
@@ -125,55 +132,83 @@ func start_rolling() -> void:
 	if state == State.READY:
 		state = State.ROLLING
 		trail.emitting = true
+		grace_timer = START_GRACE
 
 func set_steer(amount: float) -> void:
 	steer_input = clampf(amount, -1.0, 1.0)
+
+func _track_center() -> float:
+	if track_ref and track_ref.has_method("center_at_z"):
+		return float(track_ref.call("center_at_z", global_position.z))
+	return 0.0
+
+func _track_half() -> float:
+	if track_ref and track_ref.has_method("width_at_z"):
+		return float(track_ref.call("width_at_z", global_position.z)) * 0.5 - RADIUS - 0.15
+	return track_half_width
 
 func update_ball(delta: float) -> void:
 	if state != State.ROLLING:
 		return
 
+	grace_timer = maxf(0.0, grace_timer - delta)
+
 	if boost_timer > 0.0:
 		boost_timer = maxf(0.0, boost_timer - delta)
-		speed = lerpf(speed, base_speed * 1.85, delta * 6.0)
+		speed = lerpf(speed, base_speed * 1.75, delta * 6.0)
 	else:
-		speed = lerpf(speed, base_speed * (1.35 if is_supernova else 1.0), delta * 3.0)
+		speed = lerpf(speed, base_speed * (1.28 if is_supernova else 1.0), delta * 3.0)
 
-	var target_x := lane_x + steer_input * MAX_STEER * delta * 10.0
-	# Soft edge pressure — near miss when hugging rails
-	var edge_limit := track_half_width
-	if absf(target_x) > edge_limit * 0.82 and is_on_floor():
-		if randf() < delta * 2.5:
-			near_miss.emit()
-	lane_x = clampf(target_x, -edge_limit * 1.35, edge_limit * 1.35)
+	var center_x: float = _track_center()
+	var half: float = _track_half()
+	# Absolute lane target relative to moving track center
+	var desired_x: float = center_x + steer_input * half * 0.92
+	lane_x = lerpf(lane_x, desired_x, delta * 10.0)
+	lane_x = clampf(lane_x, center_x - half * 1.05, center_x + half * 1.05)
+
+	var edge_dist: float = absf(global_position.x - center_x) / maxf(half, 0.1)
+	if edge_dist > 0.85 and is_on_floor() and randf() < delta * 3.0:
+		near_miss.emit()
 
 	var control := 1.0 if is_on_floor() else AIR_CONTROL
-	velocity.x = lerpf(velocity.x, (lane_x - global_position.x) * STEER_RESPONSIVENESS * control, delta * 12.0)
+	velocity.x = lerpf(velocity.x, (lane_x - global_position.x) * STEER_RESPONSIVENESS * control, delta * 14.0)
+	velocity.x = clampf(velocity.x, -MAX_LANE_SPEED, MAX_LANE_SPEED)
 	velocity.z = -speed
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 		air_time += delta
 	else:
-		if air_time > 0.35:
-			# soft landing bounce juice
-			velocity.y = 2.8
+		if air_time > 0.3:
+			velocity.y = 2.4
 		else:
-			velocity.y = -4.0 # keep floor contact / snap
+			velocity.y = -5.0
 		air_time = 0.0
 
 	move_and_slide()
-	floor_snap_length = 0.35
 
-	spin += speed * delta * 2.2
-	mesh.rotation_degrees = Vector3(spin * 40.0, 0.0, -steer_input * 22.0)
+	# Soft edge bounce instead of instant death
+	var lim: float = half + 0.35
+	if absf(global_position.x - center_x) > lim:
+		global_position.x = center_x + signf(global_position.x - center_x) * lim
+		velocity.x *= -0.35
+		lane_x = global_position.x
 
-	# Fall death
-	if global_position.y < -6.0:
+	spin += speed * delta * 2.4
+	mesh.rotation_degrees = Vector3(spin * 42.0, 0.0, -steer_input * 28.0)
+	if aura.visible:
+		aura.rotate_y(delta * 4.0)
+
+	if global_position.y < -8.0:
+		if grace_timer > 0.0:
+			# Rescue during start grace
+			global_position = Vector3(center_x, 1.0, global_position.z)
+			velocity = Vector3(0, 0, -speed)
+			return
 		_die("fall")
 		return
 
-	# Off-track while grounded too far sideways
-	if is_on_floor() and absf(global_position.x) > track_half_width + 1.1:
+	# Only punish deep off-track if not in grace and truly off floor for a bit
+	if grace_timer <= 0.0 and not is_on_floor() and air_time > 1.6 and absf(global_position.x - center_x) > half + 1.8:
 		_die("edge")
 		return
 
@@ -189,24 +224,18 @@ func _update_supernova(delta: float) -> void:
 	if safe_streak >= SUPERNOVA_STREAK_TIME:
 		_enter_supernova()
 
-func break_streak() -> void:
-	safe_streak = 0.0
-	if is_supernova:
-		_exit_supernova()
-
 func collect_gem(value: int = 10) -> void:
 	gem_streak += 1
-	safe_streak = minf(safe_streak + 0.35, SUPERNOVA_STREAK_TIME)
+	safe_streak = minf(safe_streak + 0.4, SUPERNOVA_STREAK_TIME)
 	gem_collected.emit(value * mini(gem_streak, 8), gem_streak)
 
 func hit_boost() -> void:
-	boost_timer = 1.4
-	safe_streak = minf(safe_streak + 0.8, SUPERNOVA_STREAK_TIME)
+	boost_timer = 1.5
+	safe_streak = minf(safe_streak + 0.9, SUPERNOVA_STREAK_TIME)
 	boost_hit.emit()
 
 func hit_hazard() -> void:
-	if is_supernova:
-		safe_streak = SUPERNOVA_STREAK_TIME
+	if is_supernova or grace_timer > 0.0:
 		return
 	_die("hazard")
 
@@ -232,15 +261,15 @@ func _die(reason: String) -> void:
 func _enter_supernova() -> void:
 	is_supernova = true
 	aura.visible = true
-	_mat.emission = Color(1.0, 0.55, 0.15)
-	_mat.emission_energy_multiplier = 4.0
-	_mat.albedo_color = Color(1.0, 0.85, 0.4)
-	_aura_mat.albedo_color = Color(1.0, 0.45, 0.1, 0.35)
+	_mat.emission = Color(1.0, 0.55, 0.12)
+	_mat.emission_energy_multiplier = 5.0
+	_mat.albedo_color = Color(1.0, 0.88, 0.45)
+	_aura_mat.albedo_color = Color(1.0, 0.45, 0.1, 0.4)
 	_aura_mat.emission = Color(1.0, 0.5, 0.1)
-	_aura_mat.emission_energy_multiplier = 3.0
+	_aura_mat.emission_energy_multiplier = 4.0
 	var pm := trail.process_material as ParticleProcessMaterial
 	if pm:
-		pm.color = Color(1.0, 0.55, 0.15, 0.9)
+		pm.color = Color(1.0, 0.55, 0.12, 0.95)
 	supernova_started.emit()
 
 func _exit_supernova() -> void:
@@ -250,9 +279,9 @@ func _exit_supernova() -> void:
 	supernova_ended.emit()
 
 func _apply_normal_look() -> void:
-	_mat.albedo_color = Color(0.75, 0.9, 1.0)
-	_mat.emission = Color(0.2, 0.7, 1.0)
-	_mat.emission_energy_multiplier = 1.4
+	_mat.albedo_color = Color(0.8, 0.92, 1.0)
+	_mat.emission = Color(0.25, 0.75, 1.0)
+	_mat.emission_energy_multiplier = 1.8
 	var pm := trail.process_material as ParticleProcessMaterial
 	if pm:
-		pm.color = Color(0.4, 0.9, 1.0, 0.8)
+		pm.color = Color(0.45, 0.92, 1.0, 0.85)

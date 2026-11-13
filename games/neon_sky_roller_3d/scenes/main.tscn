@@ -1,22 +1,35 @@
-[gd_scene load_steps=5 format=3 uid="uid://neon_sky_roller_main"]
+[gd_scene load_steps=7 format=3 uid="uid://neon_sky_roller_main"]
 
 [ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_mgr"]
 [ext_resource type="Script" path="res://scripts/track.gd" id="2_trk"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="3_plr"]
 
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_main"]
+sky_top_color = Color(0.35, 0.22, 0.55, 1)
+sky_horizon_color = Color(1, 0.62, 0.38, 1)
+ground_bottom_color = Color(0.18, 0.12, 0.28, 1)
+ground_horizon_color = Color(0.72, 0.4, 0.45, 1)
+sky_curve = 0.08
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_main")
+
 [sub_resource type="Environment" id="Environment_main"]
-background_mode = 1
-background_color = Color(0.95, 0.45, 0.28, 1)
-ambient_light_source = 2
-ambient_light_color = Color(0.55, 0.35, 0.4, 1)
-ambient_light_energy = 0.85
-tonemap_mode = 3
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+ambient_light_color = Color(0.65, 0.4, 0.45, 1)
+ambient_light_energy = 0.95
+tonemap_mode = 2
+tonemap_exposure = 1.05
 glow_enabled = true
-glow_intensity = 1.1
-glow_bloom = 0.35
+glow_intensity = 0.7
+glow_bloom = 0.18
 fog_enabled = true
-fog_light_color = Color(0.55, 0.32, 0.42, 1)
-fog_density = 0.012
+fog_light_color = Color(0.72, 0.4, 0.45, 1)
+fog_density = 0.0065
+fog_aerial_perspective = 0.55
+fog_sky_affect = 0.35
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_mgr")
