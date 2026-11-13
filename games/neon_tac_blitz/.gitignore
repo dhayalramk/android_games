@@ -1,0 +1,11 @@
+build/
+*.apk
+*.aab
+*.idsig
+.import/
+.godot/
+android/build/
+android/.build_version
+android/.gdignore
+*.jks
+*.keystore
