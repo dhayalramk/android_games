@@ -16,20 +16,14 @@ A collection of fast, engaging, hyper-casual and arcade Android games designed f
 ```text
 android_games/
 ├── games/
-│   ├── game_01_chroma_dash/        # Week 1 Game
-│   ├── game_02_orbit_flip/         # Week 2 Game
-│   └── ...
-├── shared/                         # Reusable core modules
-│   ├── audio/                      # Sound FX & BGM helpers
-│   ├── haptics/                    # Vibration & sensory feedback
-│   ├── storage/                    # Local high scores & settings
-│   └── ui_components/              # Common pause, game over, score overlays
-├── scripts/                        # Automation & deployment helpers
-│   ├── build_apk.bat               # Fast APK build for connected device
-│   ├── build_bundle.bat            # Release AAB generation for Play Store
-│   └── install_to_device.bat       # Direct adb push to phone
+│   ├── neon_sky_roller_3d/         # Flagship: solo-leveling sky highway roller (Godot 4)
+│   ├── stack_smash_3d/             # 3D tower smash (Godot 4)
+│   └── ...                         # One folder = one game
+├── scripts/                        # Godot run / ADB install helpers
 └── docs/
-    └── game_publishing_playbook.md # Weekly 7-day sprint plan
+    ├── neon_sky_roller_3d_plan.md
+    ├── cyber_drift_3d_gdd.md
+    └── weekly_game_studio_plan.md
 ```
 
 ---
@@ -48,17 +42,11 @@ android_games/
 
 ---
 
-## 🎯 6-Week Game Lineup
+## 🎯 Live Games
 
-1. **Game 1: Chroma Dash (Color Rush)**
-   - *Mechanic*: One-tap color matching obstacle runner. Tap to switch colors to pass through matching laser barriers.
-2. **Game 2: Orbit Flip (Gravity Switch)**
-   - *Mechanic*: Endless runner where tapping inverts gravity between ceiling and floor dodging spikes and gaps.
-3. **Game 3: Neon Slice (Precision Cutter)**
-   - *Mechanic*: Swipe to cut floating geometric shapes into equal percentages before the timer expires.
-4. **Game 4: Stack Pulse (Timing Rhythm)**
-   - *Mechanic*: Tap at the exact micro-second to stack moving blocks into a towering sky scraper.
-5. **Game 5: Vortex Weave (Reflex Survival)**
-   - *Mechanic*: Smooth drag control dodging incoming bullet hell ripples in a cyber-neon arena.
-6. **Game 6: Merge Rush 2048 (Arcade Drop)**
-   - *Mechanic*: Drop and combine numbered bouncy spheres into higher values with bouncy physics.
+1. **Neon Sky Roller 3D** (`games/neon_sky_roller_3d`) — Flagship solo-leveling roller: drag-steer a chrome sphere across neon sky highways, collect gems, hit boosts, charge Supernova, clear level after level.
+2. **Stack Smash 3D** (`games/stack_smash_3d`) — Smash through tower rings with timing + fever mode.
+
+## 🗺️ Concept Backlog
+
+- Cyber Drift 3D, Glass Shatter 3D, Chroma Dash, Orbit Flip, Neon Slice, Stack Pulse, Vortex Weave, Merge Rush 2048

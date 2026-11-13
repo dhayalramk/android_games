@@ -1,0 +1,18 @@
+# Local export outputs
+build/
+*.apk
+*.aab
+*.idsig
+
+# Godot
+.import/
+.godot/
+
+# Generated Android Gradle template (./scripts/install_android_template.sh)
+android/build/
+android/.build_version
+android/.gdignore
+
+# Secrets — never commit keystores
+*.jks
+*.keystore
