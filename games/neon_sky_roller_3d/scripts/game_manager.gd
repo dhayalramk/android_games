@@ -55,6 +55,10 @@ var home_btn: Button
 var sfx: Node
 var sun_disk: MeshInstance3D
 var horizon_glow: MeshInstance3D
+var horizon_glow2: MeshInstance3D
+var skyline: Node3D
+var speed_lines: Control
+var _cam_bank: float = 0.0
 
 func _ready() -> void:
 	progress = ProgressScript.new()
@@ -208,36 +212,93 @@ func _build_world_dressing() -> void:
 		sun_disk.queue_free()
 	if horizon_glow and is_instance_valid(horizon_glow):
 		horizon_glow.queue_free()
+	if horizon_glow2 and is_instance_valid(horizon_glow2):
+		horizon_glow2.queue_free()
+	if skyline and is_instance_valid(skyline):
+		skyline.queue_free()
 
 	sun_disk = MeshInstance3D.new()
 	var sun_mesh := SphereMesh.new()
-	sun_mesh.radius = 18.0
-	sun_mesh.height = 36.0
+	sun_mesh.radius = 20.0
+	sun_mesh.height = 40.0
 	sun_disk.mesh = sun_mesh
 	var sm := StandardMaterial3D.new()
 	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	sm.albedo_color = Color(1.0, 0.85, 0.45)
 	sm.emission_enabled = true
 	sm.emission = Color(1.0, 0.7, 0.25)
-	sm.emission_energy_multiplier = 8.0
+	sm.emission_energy_multiplier = 10.0
 	sun_disk.material_override = sm
 	add_child(sun_disk)
 
-	horizon_glow = MeshInstance3D.new()
+	horizon_glow = _make_horizon_ring(22.0, 34.0, Color(1.0, 0.55, 0.2, 0.38), 3.2)
+	add_child(horizon_glow)
+	horizon_glow2 = _make_horizon_ring(38.0, 48.0, Color(1.0, 0.35, 0.55, 0.22), 2.0)
+	add_child(horizon_glow2)
+
+	# Distant neon skyline silhouettes (sells “city under the highway”)
+	skyline = Node3D.new()
+	skyline.name = "Skyline"
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for i in range(28):
+		var tower := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		var w: float = rng.randf_range(1.2, 3.5)
+		var h: float = rng.randf_range(6.0, 22.0)
+		box.size = Vector3(w, h, w * 0.7)
+		tower.mesh = box
+		var tm := StandardMaterial3D.new()
+		tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		tm.albedo_color = Color(0.05, 0.06, 0.12, 1.0)
+		tm.emission_enabled = true
+		tm.emission = Color(0.35, 0.55, 1.0) if i % 3 == 0 else Color(1.0, 0.45, 0.55)
+		tm.emission_energy_multiplier = rng.randf_range(0.4, 1.4)
+		tower.material_override = tm
+		tower.position = Vector3(rng.randf_range(-90, 90), -18.0 + h * 0.5, rng.randf_range(-160, -40))
+		skyline.add_child(tower)
+	add_child(skyline)
+	_ensure_speed_lines()
+
+func _make_horizon_ring(inner_r: float, outer_r: float, col: Color, energy: float) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
 	var ring := TorusMesh.new()
-	ring.inner_radius = 22.0
-	ring.outer_radius = 34.0
-	horizon_glow.mesh = ring
-	horizon_glow.rotation_degrees = Vector3(90, 0, 0)
+	ring.inner_radius = inner_r
+	ring.outer_radius = outer_r
+	node.mesh = ring
+	node.rotation_degrees = Vector3(90, 0, 0)
 	var hm := StandardMaterial3D.new()
 	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	hm.albedo_color = Color(1.0, 0.55, 0.2, 0.35)
+	hm.albedo_color = col
 	hm.emission_enabled = true
-	hm.emission = Color(1.0, 0.45, 0.15)
-	hm.emission_energy_multiplier = 3.0
-	horizon_glow.material_override = hm
-	add_child(horizon_glow)
+	hm.emission = Color(col.r, col.g, col.b)
+	hm.emission_energy_multiplier = energy
+	node.material_override = hm
+	return node
+
+func _ensure_speed_lines() -> void:
+	if speed_lines and is_instance_valid(speed_lines):
+		return
+	speed_lines = Control.new()
+	speed_lines.name = "SpeedLines"
+	speed_lines.set_anchors_preset(Control.PRESET_FULL_RECT)
+	speed_lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	speed_lines.modulate.a = 0.0
+	hud.add_child(speed_lines)
+	for i in range(10):
+		var line := ColorRect.new()
+		line.color = Color(1, 1, 1, 0.14 if i % 2 == 0 else 0.08)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var left := i < 5
+		line.anchor_left = 0.0 if left else 0.78
+		line.anchor_right = 0.22 if left else 1.0
+		line.anchor_top = 0.08 + (i % 5) * 0.16
+		line.anchor_bottom = line.anchor_top + 0.012
+		line.offset_left = 0
+		line.offset_right = 0
+		line.rotation = (-0.35 if left else 0.35)
+		speed_lines.add_child(line)
 
 func _build_clouds() -> void:
 	for c in clouds.get_children():
@@ -316,18 +377,24 @@ func _apply_theme(theme: Dictionary) -> void:
 	env.ambient_light_color = theme["ambient"]
 	env.ambient_light_energy = 0.95
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.05
+	env.tonemap_exposure = 1.12
+	env.tonemap_white = 5.5
 	env.glow_enabled = true
-	env.glow_intensity = 0.7
-	env.glow_bloom = 0.18
-	env.glow_hdr_threshold = 0.85
+	env.glow_intensity = 0.95
+	env.glow_bloom = 0.28
+	env.glow_hdr_threshold = 0.7
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.18
+	env.adjustment_contrast = 1.06
 	env.fog_enabled = true
 	env.fog_light_color = theme["fog"]
-	env.fog_density = 0.0065
-	env.fog_aerial_perspective = 0.55
-	env.fog_sky_affect = 0.35
+	env.fog_density = 0.0055
+	env.fog_aerial_perspective = 0.62
+	env.fog_sky_affect = 0.4
 	sun.light_color = theme["light"]
-	sun.light_energy = 1.25
+	sun.light_energy = 1.45
+	sun.shadow_enabled = true
 	RenderingServer.set_default_clear_color(theme["sky"])
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -436,6 +503,16 @@ func _process(delta: float) -> void:
 			smat.emission = sc
 	if horizon_glow:
 		horizon_glow.global_position = player.global_position + Vector3(0, 2.0, -95.0)
+	if horizon_glow2:
+		horizon_glow2.global_position = player.global_position + Vector3(0, 1.5, -110.0)
+	if skyline:
+		skyline.global_position.x = player.global_position.x * 0.15
+		skyline.global_position.z = player.global_position.z * 0.12
+	if speed_lines:
+		var turbo_a: float = 0.0
+		if player.state == PlayerScript.State.ROLLING and (player.is_player_turbo() or player.is_supernova):
+			turbo_a = 0.55 + player.throttle * 0.35
+		speed_lines.modulate.a = lerpf(speed_lines.modulate.a, turbo_a, delta * 10.0)
 
 func _update_speed_hud(delta: float) -> void:
 	if speed_bar == null or speed_label == null:
@@ -478,9 +555,18 @@ func _update_camera(delta: float) -> void:
 	var look := player.global_position + Vector3(player.steer_input * 1.1 + center_bias * 0.2, 0.35, -6.0)
 	camera.look_at(look, Vector3.UP)
 
-	var target_fov := base_fov + speed_t * 12.0 + fov_pulse
+	# Bank with steer — commercial runner camera juice
+	var bank_target: float = -player.steer_input * 7.5
+	if player.is_supernova:
+		bank_target *= 1.25
+	_cam_bank = lerpf(_cam_bank, bank_target, delta * 7.0)
+	camera_rig.rotation_degrees.z = _cam_bank
+
+	var target_fov := base_fov + speed_t * 14.0 + fov_pulse
 	if player.boost_timer > 0.0:
-		target_fov += 7.0
+		target_fov += 8.0
+	if player.throttle > 0.4:
+		target_fov += player.throttle * 5.0
 	camera.fov = lerpf(camera.fov, target_fov, delta * 6.0)
 	fov_pulse = maxf(0.0, fov_pulse - delta * 14.0)
 

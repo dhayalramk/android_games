@@ -83,6 +83,9 @@ func build(level_cfg, theme: Dictionary) -> Vector3:
 			_add_edge_rails(x_center, SEGMENT_LEN + 0.15, width, seg_z)
 			if i % 2 == 0:
 				_add_support(x_center, seg_z)
+			# Occasional neon arch gates for depth / commercial runner silhouette
+			if i > 2 and i % 5 == 0 and i < segments - 2:
+				_add_neon_arch(Vector3(x_center, 0.0, seg_z), width)
 			z -= SEGMENT_LEN
 
 		# Gems weave but stay collectible
@@ -268,6 +271,38 @@ func _add_ramp(pos: Vector3, width: float) -> void:
 	col.shape = shape
 	body.add_child(col)
 	add_child(body)
+
+func _add_neon_arch(pos: Vector3, width: float) -> void:
+	var root := Node3D.new()
+	root.position = pos
+	var arch_w: float = width * 0.55
+	var arch_h: float = 3.2
+	# Two pillars + crossbar
+	for side in [-1.0, 1.0]:
+		var pillar := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.18, arch_h, 0.18)
+		pillar.mesh = box
+		pillar.position = Vector3(side * arch_w, arch_h * 0.5, 0)
+		pillar.material_override = _neon_mat(edge_color, 4.5)
+		root.add_child(pillar)
+	var bar := MeshInstance3D.new()
+	var bb := BoxMesh.new()
+	bb.size = Vector3(arch_w * 2.0 + 0.18, 0.16, 0.16)
+	bar.mesh = bb
+	bar.position = Vector3(0, arch_h, 0)
+	bar.material_override = _neon_mat(edge_color.lightened(0.2), 6.0)
+	root.add_child(bar)
+	# Soft glow orb at apex
+	var orb := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.28
+	sm.height = 0.56
+	orb.mesh = sm
+	orb.position = Vector3(0, arch_h + 0.15, 0)
+	orb.material_override = _neon_mat(Color(1, 1, 1), 5.0)
+	root.add_child(orb)
+	add_child(root)
 
 func _add_gem(pos: Vector3) -> void:
 	var area := Area3D.new()

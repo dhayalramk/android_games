@@ -240,6 +240,19 @@ func update_ball(delta: float) -> void:
 
 	spin += speed * delta * 2.4
 	mesh.rotation_degrees = Vector3(spin * 42.0, 0.0, -steer_input * 28.0)
+	# Squash/stretch with throttle + air for “alive” ball
+	var sx: float = 1.0 + absf(steer_input) * 0.08
+	var sy: float = 1.0 - clampf(throttle, 0.0, 1.0) * 0.08
+	if air_time > 0.15:
+		sy *= 1.08
+		sx *= 0.94
+	mesh.scale = mesh.scale.lerp(Vector3(sx, sy, 1.0 + clampf(throttle, 0.0, 1.0) * 0.1), delta * 10.0)
+	trail.emitting = state == State.ROLLING
+	if trail.process_material is ParticleProcessMaterial:
+		var pm := trail.process_material as ParticleProcessMaterial
+		pm.initial_velocity_min = 1.5 + maxf(throttle, 0.0) * 4.0
+		pm.initial_velocity_max = 5.5 + maxf(throttle, 0.0) * 8.0
+		pm.color = Color(1.0, 0.75, 0.3, 0.95) if throttle > 0.35 else Color(0.45, 0.92, 1.0, 0.9)
 	if aura.visible:
 		aura.rotate_y(delta * 4.0)
 
