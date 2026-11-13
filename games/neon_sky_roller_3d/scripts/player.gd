@@ -23,6 +23,7 @@ var state: State = State.READY
 var base_speed: float = 12.0
 var speed: float = 12.0
 var steer_input: float = 0.0 # -1 .. 1
+var throttle: float = 0.0 # -1 brake .. 0 cruise .. +1 full turbo (player-controlled)
 var lane_x: float = 0.0
 var track_half_width: float = 3.0
 var is_supernova: bool = false
@@ -33,6 +34,7 @@ var air_time: float = 0.0
 var spin: float = 0.0
 var grace_timer: float = 0.0
 var track_ref: Node3D = null
+var finger_held: bool = false
 var mesh: MeshInstance3D
 var trail: GPUParticles3D
 var aura: MeshInstance3D
@@ -112,6 +114,8 @@ func reset_for_level(start_pos: Vector3, cfg, track: Node3D = null) -> void:
 	velocity = Vector3.ZERO
 	lane_x = start_pos.x
 	steer_input = 0.0
+	throttle = 0.0
+	finger_held = false
 	base_speed = cfg.base_speed
 	speed = cfg.base_speed
 	track_half_width = cfg.track_width * 0.5 - RADIUS - 0.2
@@ -137,6 +141,22 @@ func start_rolling() -> void:
 func set_steer(amount: float) -> void:
 	steer_input = clampf(amount, -1.0, 1.0)
 
+func set_throttle(amount: float) -> void:
+	throttle = clampf(amount, -1.0, 1.0)
+
+func set_finger_held(held: bool) -> void:
+	finger_held = held
+	if not held:
+		# Ease toward cruise when finger lifts
+		throttle = lerpf(throttle, 0.0, 0.65)
+
+func get_speed_ratio() -> float:
+	# 0..1-ish for HUD (relative to base)
+	return clampf(speed / maxf(base_speed, 0.1), 0.5, 2.2)
+
+func is_player_turbo() -> bool:
+	return throttle > 0.35 or boost_timer > 0.0
+
 func _track_center() -> float:
 	if track_ref and track_ref.has_method("center_at_z"):
 		return float(track_ref.call("center_at_z", global_position.z))
@@ -153,11 +173,19 @@ func update_ball(delta: float) -> void:
 
 	grace_timer = maxf(0.0, grace_timer - delta)
 
+	# Player throttle: -1 brake (0.65x) … 0 cruise … +1 turbo (1.7x)
+	# Boost pads and Supernova stack on top.
+	var throttle_mult: float = 1.0 + throttle * (0.7 if throttle >= 0.0 else 0.35)
+	var target_mult: float = throttle_mult
+	if is_supernova:
+		target_mult *= 1.22
 	if boost_timer > 0.0:
 		boost_timer = maxf(0.0, boost_timer - delta)
-		speed = lerpf(speed, base_speed * 1.75, delta * 6.0)
-	else:
-		speed = lerpf(speed, base_speed * (1.28 if is_supernova else 1.0), delta * 3.0)
+		target_mult *= 1.55
+	# Hold finger at least keeps a tiny push so rolling feels alive
+	if finger_held and throttle > -0.1:
+		target_mult = maxf(target_mult, 1.05)
+	speed = lerpf(speed, base_speed * target_mult, delta * 5.5)
 
 	var center_x: float = _track_center()
 	var half: float = _track_half()

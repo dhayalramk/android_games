@@ -23,6 +23,7 @@ const PlayerScript = preload("res://scripts/player.gd")
 @onready var banner: Control = $CanvasLayer/Banner
 @onready var banner_title: Label = $CanvasLayer/Banner/BannerTitle
 @onready var banner_sub: Label = $CanvasLayer/Banner/BannerSub
+@onready var hud: Control = $CanvasLayer/HUD
 
 var level: int = 1
 var max_unlocked: int = 1
@@ -39,6 +40,9 @@ var banner_timer: float = 0.0
 var save_path := "user://neon_sky_roller.save"
 var _theme: Dictionary = {}
 var _sky_mat: ProceduralSkyMaterial
+var speed_label: Label
+var speed_bar: ProgressBar
+var turbo_hint: Label
 
 func _ready() -> void:
 	_load_progress()
@@ -54,10 +58,53 @@ func _ready() -> void:
 	track.hazard_hit.connect(_on_hazard)
 	track.finish_reached.connect(_on_finish_gate)
 	fever_label.visible = false
+	_setup_speed_hud()
 	_setup_sky()
 	_build_clouds()
 	# Always offer the climb from the furthest unlocked stage
 	_start_level(clampi(max_unlocked, 1, 99))
+
+func _setup_speed_hud() -> void:
+	speed_label = Label.new()
+	speed_label.name = "SpeedLabel"
+	speed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	speed_label.add_theme_font_size_override("font_size", 18)
+	speed_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0, 0.95))
+	speed_label.text = "SPEED"
+	speed_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	speed_label.offset_left = 24
+	speed_label.offset_top = 44
+	speed_label.offset_right = 160
+	speed_label.offset_bottom = 72
+	speed_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(speed_label)
+
+	speed_bar = ProgressBar.new()
+	speed_bar.name = "SpeedBar"
+	speed_bar.max_value = 2.0
+	speed_bar.value = 1.0
+	speed_bar.show_percentage = false
+	speed_bar.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	speed_bar.offset_left = 24
+	speed_bar.offset_top = 72
+	speed_bar.offset_right = 170
+	speed_bar.offset_bottom = 88
+	speed_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(speed_bar)
+
+	turbo_hint = Label.new()
+	turbo_hint.name = "TurboHint"
+	turbo_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	turbo_hint.add_theme_font_size_override("font_size", 16)
+	turbo_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35, 0.0))
+	turbo_hint.text = "TURBO"
+	turbo_hint.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	turbo_hint.offset_left = -80
+	turbo_hint.offset_top = 168
+	turbo_hint.offset_right = 80
+	turbo_hint.offset_bottom = 196
+	turbo_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(turbo_hint)
 
 func _setup_sky() -> void:
 	var env := world_env.environment
@@ -109,9 +156,11 @@ func _start_level(lvl: int) -> void:
 	banner_sub.text = cfg.title
 	banner_timer = 1.45
 	banner.modulate.a = 1.0
-	hint_label.text = "Drag to steer · Tap to roll"
+	hint_label.text = "Drag ←→ steer · ↑ turbo · ↓ brake"
 	hint_label.visible = true
 	fever_label.visible = false
+	if turbo_hint:
+		turbo_hint.modulate.a = 0.0
 
 	camera_rig.global_position = player.global_position + cam_offset
 	camera.fov = base_fov
@@ -183,19 +232,29 @@ func _handle_press(pressed: bool, pos: Vector2) -> void:
 			hint_label.visible = false
 			banner_timer = minf(banner_timer, 0.3)
 		dragging = true
-		_apply_steer_from_pos(pos)
+		player.set_finger_held(true)
+		_apply_controls_from_pos(pos)
 	else:
 		dragging = false
+		player.set_finger_held(false)
 		# Ease back toward center when finger lifts
 		player.set_steer(player.steer_input * 0.35)
 
 func _apply_steer_from_pos(pos: Vector2) -> void:
+	_apply_controls_from_pos(pos)
+
+func _apply_controls_from_pos(pos: Vector2) -> void:
 	if player.state != PlayerScript.State.ROLLING and player.state != PlayerScript.State.READY:
 		return
-	var w: float = maxf(get_viewport().get_visible_rect().size.x, 1.0)
+	var rect := get_viewport().get_visible_rect().size
+	var w: float = maxf(rect.x, 1.0)
+	var h: float = maxf(rect.y, 1.0)
 	# Absolute finger X → lane (-1 left … +1 right)
 	var nx: float = clampf((pos.x / w) * 2.0 - 1.0, -1.0, 1.0)
 	player.set_steer(nx)
+	# Finger Y → speed: top = turbo (+1), mid = cruise (0), bottom = brake (-1)
+	var ny: float = clampf(1.0 - (pos.y / h) * 2.0, -1.0, 1.0)
+	player.set_throttle(ny)
 
 func _process(delta: float) -> void:
 	if banner_timer > 0.0:
@@ -208,12 +267,34 @@ func _process(delta: float) -> void:
 	player.update_ball(delta)
 	_update_camera(delta)
 	_update_streak_ui()
+	_update_speed_hud(delta)
 	fill_light.global_position = player.global_position + Vector3(0, 3.2, 1.2)
 	fill_light.light_color = Color(1.0, 0.55, 0.2) if player.is_supernova else Color(0.45, 0.75, 1.0)
 	fill_light.light_energy = 3.6 if player.is_supernova else 2.1
 
 	clouds.global_position.x = lerpf(clouds.global_position.x, player.global_position.x * 0.25, delta)
 	clouds.global_position.z = player.global_position.z * 0.2
+
+func _update_speed_hud(delta: float) -> void:
+	if speed_bar == null or speed_label == null:
+		return
+	var ratio: float = player.get_speed_ratio()
+	speed_bar.value = ratio
+	var kmh: int = int(round(player.speed * 4.2))
+	if player.is_player_turbo():
+		speed_label.text = "TURBO  %d" % kmh
+		speed_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.25, 1.0))
+		turbo_hint.modulate.a = lerpf(turbo_hint.modulate.a, 1.0, delta * 8.0)
+		if player.throttle > 0.55 and player.state == PlayerScript.State.ROLLING:
+			fov_pulse = maxf(fov_pulse, 6.0 + player.throttle * 6.0)
+	elif player.throttle < -0.35:
+		speed_label.text = "BRAKE  %d" % kmh
+		speed_label.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0, 1.0))
+		turbo_hint.modulate.a = lerpf(turbo_hint.modulate.a, 0.0, delta * 6.0)
+	else:
+		speed_label.text = "SPEED  %d" % kmh
+		speed_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0, 0.95))
+		turbo_hint.modulate.a = lerpf(turbo_hint.modulate.a, 0.0, delta * 6.0)
 
 func _update_camera(delta: float) -> void:
 	var speed_t := clampf((player.speed - 11.0) / 22.0, 0.0, 1.0)
@@ -223,6 +304,8 @@ func _update_camera(delta: float) -> void:
 		fov_pulse = maxf(fov_pulse, 9.0)
 	if player.is_supernova:
 		desired_offset += Vector3(0, -0.5, 1.2)
+	if player.throttle > 0.4:
+		desired_offset += Vector3(0, -0.35 * player.throttle, 0.9 * player.throttle)
 
 	var center_bias := 0.0
 	if track.has_method("center_at_z"):

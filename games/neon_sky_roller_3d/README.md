@@ -18,7 +18,10 @@ One folder = one game: `games/neon_sky_roller_3d/`
 | Input | Action |
 |---|---|
 | Tap | Start / retry / next level |
-| Drag L/R | Steer the chrome sphere |
+| Drag ← → | Steer the chrome sphere |
+| Drag ↑ | **Turbo** — player-controlled speed boost |
+| Drag ↓ | **Brake** — slow down for tight gates |
+| Boost pads / Supernova | Extra speed on top of your throttle |
 
 ## Levels (solo leveling)
 
