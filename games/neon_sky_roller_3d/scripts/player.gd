@@ -86,25 +86,42 @@ func _build_visuals() -> void:
 	aura.visible = false
 	add_child(aura)
 
+	# Outer rim ring for “premium ball” silhouette
+	var rim := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = RADIUS * 0.92
+	torus.outer_radius = RADIUS * 1.08
+	rim.mesh = torus
+	rim.rotation_degrees = Vector3(90, 0, 0)
+	var rm := StandardMaterial3D.new()
+	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rm.albedo_color = Color(1, 1, 1, 0.65)
+	rm.emission_enabled = true
+	rm.emission = Color(0.7, 0.95, 1.0)
+	rm.emission_energy_multiplier = 2.5
+	rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rim.material_override = rm
+	add_child(rim)
+
 	trail = GPUParticles3D.new()
-	trail.amount = 64
-	trail.lifetime = 0.5
+	trail.amount = 96
+	trail.lifetime = 0.55
 	trail.emitting = false
 	var proc := ParticleProcessMaterial.new()
-	proc.direction = Vector3(0, 0.15, 1)
-	proc.spread = 22.0
-	proc.initial_velocity_min = 1.2
-	proc.initial_velocity_max = 4.0
-	proc.gravity = Vector3(0, 1.2, 0)
-	proc.scale_min = 0.07
-	proc.scale_max = 0.2
-	proc.color = Color(0.45, 0.92, 1.0, 0.85)
+	proc.direction = Vector3(0, 0.1, 1)
+	proc.spread = 28.0
+	proc.initial_velocity_min = 1.5
+	proc.initial_velocity_max = 5.5
+	proc.gravity = Vector3(0, 0.8, 0)
+	proc.scale_min = 0.06
+	proc.scale_max = 0.24
+	proc.color = Color(0.45, 0.92, 1.0, 0.9)
 	trail.process_material = proc
 	var pmesh := SphereMesh.new()
-	pmesh.radius = 0.07
-	pmesh.height = 0.14
+	pmesh.radius = 0.08
+	pmesh.height = 0.16
 	trail.draw_pass_1 = pmesh
-	trail.position = Vector3(0, 0, 0.4)
+	trail.position = Vector3(0, 0, 0.45)
 	add_child(trail)
 
 func reset_for_level(start_pos: Vector3, cfg, track: Node3D = null) -> void:

@@ -5,6 +5,8 @@ const LevelConfigScript = preload("res://scripts/level_config.gd")
 const PlayerScript = preload("res://scripts/player.gd")
 const ProgressScript = preload("res://scripts/progress.gd")
 const MetaHubScript = preload("res://scripts/meta_hub.gd")
+const UI = preload("res://scripts/ui_style.gd")
+const SfxScript = preload("res://scripts/sfx.gd")
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var sun: DirectionalLight3D = $DirectionalLight3D
@@ -50,6 +52,9 @@ var speed_label: Label
 var speed_bar: ProgressBar
 var turbo_hint: Label
 var home_btn: Button
+var sfx: Node
+var sun_disk: MeshInstance3D
+var horizon_glow: MeshInstance3D
 
 func _ready() -> void:
 	progress = ProgressScript.new()
@@ -66,13 +71,33 @@ func _ready() -> void:
 	track.hazard_hit.connect(_on_hazard)
 	track.finish_reached.connect(_on_finish_gate)
 	fever_label.visible = false
+	sfx = SfxScript.new()
+	add_child(sfx)
 	_setup_speed_hud()
 	_setup_home_button()
+	_polish_hud()
 	_setup_sky()
+	_build_world_dressing()
 	_build_clouds()
 	_setup_hub()
 	player.apply_skin(progress.skin_data())
 	_show_hub()
+
+func _polish_hud() -> void:
+	UI.label_outline(level_label, Color(1, 0.96, 0.88), 30, Color(0, 0, 0, 0.7), 8)
+	UI.label_outline(title_label, Color(1.0, 0.65, 0.28), 18, Color(0, 0, 0, 0.65), 5)
+	UI.label_outline(score_label, Color(1, 1, 1), 52, Color(0, 0, 0, 0.55), 10)
+	UI.label_outline(gem_label, Color(0.45, 1.0, 0.95), 22, Color(0, 0, 0, 0.55), 5)
+	UI.label_outline(hint_label, Color(1, 1, 1, 0.95), 18, Color(0, 0, 0, 0.6), 5)
+	UI.label_outline(fever_label, Color(1.0, 0.55, 0.15), 44, Color(0.25, 0.05, 0, 0.85), 10)
+	UI.label_outline(banner_title, Color(1, 0.95, 0.8), 36, Color(0, 0, 0, 0.7), 8)
+	UI.label_outline(banner_sub, Color(0.85, 0.95, 1.0), 16, Color(0, 0, 0, 0.55), 4)
+	var wash: ColorRect = hud.get_node_or_null("TopWash")
+	if wash:
+		wash.color = Color(0.02, 0.03, 0.08, 0.55)
+	var banner_bg: ColorRect = banner.get_node_or_null("BannerBg")
+	if banner_bg:
+		banner_bg.color = Color(0.04, 0.05, 0.1, 0.82)
 
 func _setup_speed_hud() -> void:
 	speed_label = Label.new()
@@ -118,20 +143,20 @@ func _setup_speed_hud() -> void:
 
 func _setup_home_button() -> void:
 	home_btn = Button.new()
-	home_btn.text = "HOME"
-	home_btn.add_theme_font_size_override("font_size", 14)
+	home_btn.text = "⌂ HOME"
 	home_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	home_btn.offset_left = 24
+	home_btn.offset_left = 20
 	home_btn.offset_top = 100
-	home_btn.offset_right = 110
-	home_btn.offset_bottom = 132
+	home_btn.offset_right = 128
+	home_btn.offset_bottom = 136
 	home_btn.visible = false
+	UI.apply_button(home_btn, Color(0.1, 0.12, 0.2, 0.85), Color(0.5, 0.8, 1.0, 0.45), Color(1, 1, 1), 14)
 	home_btn.pressed.connect(_show_hub)
 	hud.add_child(home_btn)
 
 func _setup_hub() -> void:
-	hub = Control.new()
-	hub.set_script(MetaHubScript)
+	hub = MetaHubScript.new()
+	hub.z_index = 20
 	canvas.add_child(hub)
 	hub.setup(progress)
 	hub.play_pressed.connect(_on_hub_play)
@@ -166,17 +191,54 @@ func _setup_sky() -> void:
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 
+func _build_world_dressing() -> void:
+	if sun_disk and is_instance_valid(sun_disk):
+		sun_disk.queue_free()
+	if horizon_glow and is_instance_valid(horizon_glow):
+		horizon_glow.queue_free()
+
+	sun_disk = MeshInstance3D.new()
+	var sun_mesh := SphereMesh.new()
+	sun_mesh.radius = 18.0
+	sun_mesh.height = 36.0
+	sun_disk.mesh = sun_mesh
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.albedo_color = Color(1.0, 0.85, 0.45)
+	sm.emission_enabled = true
+	sm.emission = Color(1.0, 0.7, 0.25)
+	sm.emission_energy_multiplier = 8.0
+	sun_disk.material_override = sm
+	add_child(sun_disk)
+
+	horizon_glow = MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = 22.0
+	ring.outer_radius = 34.0
+	horizon_glow.mesh = ring
+	horizon_glow.rotation_degrees = Vector3(90, 0, 0)
+	var hm := StandardMaterial3D.new()
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.albedo_color = Color(1.0, 0.55, 0.2, 0.35)
+	hm.emission_enabled = true
+	hm.emission = Color(1.0, 0.45, 0.15)
+	hm.emission_energy_multiplier = 3.0
+	horizon_glow.material_override = hm
+	add_child(horizon_glow)
+
 func _build_clouds() -> void:
 	for c in clouds.get_children():
 		c.queue_free()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 42
 	var cloud_col: Color = _theme.get("cloud", Color(1, 0.85, 0.75, 0.5))
-	for i in range(36):
+	for i in range(42):
 		var puff := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
-		sphere.radius = rng.randf_range(3.0, 7.5)
-		sphere.height = sphere.radius * 1.35
+		var r: float = rng.randf_range(4.0, 10.0)
+		sphere.radius = r
+		sphere.height = r * 0.55 # flattened pancake clouds
 		puff.mesh = sphere
 		var m := StandardMaterial3D.new()
 		m.albedo_color = cloud_col
@@ -184,9 +246,9 @@ func _build_clouds() -> void:
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		puff.material_override = m
 		puff.position = Vector3(
-			rng.randf_range(-55, 55),
-			rng.randf_range(-22, -9),
-			rng.randf_range(-260, 50)
+			rng.randf_range(-70, 70),
+			rng.randf_range(-26, -10),
+			rng.randf_range(-280, 60)
 		)
 		clouds.add_child(puff)
 
@@ -271,6 +333,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_apply_steer_from_pos(event.position)
 
 func _input(event: InputEvent) -> void:
+	# Dev/desktop helper: P starts play from hub
+	if event is InputEventKey and event.pressed and event.keycode == KEY_P:
+		if in_hub:
+			_on_hub_play(progress.max_unlocked)
+		return
 	if in_hub:
 		return
 	if event is InputEventMouseButton and event.pressed:
@@ -346,6 +413,17 @@ func _process(delta: float) -> void:
 
 	clouds.global_position.x = lerpf(clouds.global_position.x, player.global_position.x * 0.25, delta)
 	clouds.global_position.z = player.global_position.z * 0.2
+
+	# Sun hangs on the horizon ahead of the player
+	if sun_disk:
+		sun_disk.global_position = player.global_position + Vector3(0, 14.0, -120.0)
+		var sc: Color = _theme.get("horizon", Color(1.0, 0.6, 0.3))
+		var smat := sun_disk.material_override as StandardMaterial3D
+		if smat:
+			smat.albedo_color = sc
+			smat.emission = sc
+	if horizon_glow:
+		horizon_glow.global_position = player.global_position + Vector3(0, 2.0, -95.0)
 
 func _update_speed_hud(delta: float) -> void:
 	if speed_bar == null or speed_label == null:
@@ -424,6 +502,8 @@ func _on_gem(value: int, streak: int) -> void:
 	progress.add_mission_progress("gem", 1)
 	_update_hud()
 	_vibrate(12)
+	if sfx:
+		sfx.gem(streak)
 	hint_label.visible = true
 	hint_label.text = "COMBO x%d" % mini(streak, 8)
 	get_tree().create_timer(0.5).timeout.connect(func():
@@ -438,6 +518,8 @@ func _on_boost() -> void:
 	fov_pulse = 14.0
 	camera_shake = 0.12
 	_vibrate(35)
+	if sfx:
+		sfx.boost()
 	hint_label.visible = true
 	hint_label.text = "BOOST!"
 	get_tree().create_timer(0.45).timeout.connect(func():
@@ -503,6 +585,8 @@ func _on_finished() -> void:
 	banner.modulate.a = 1.0
 	camera_shake = 0.22
 	_vibrate(120)
+	if sfx:
+		sfx.clear()
 
 func _on_died(reason: String) -> void:
 	banner.visible = true
@@ -519,6 +603,8 @@ func _on_died(reason: String) -> void:
 	banner.modulate.a = 1.0
 	camera_shake = 0.45
 	_vibrate(220)
+	if sfx:
+		sfx.die()
 
 func _on_supernova_start() -> void:
 	used_supernova = true
@@ -528,6 +614,8 @@ func _on_supernova_start() -> void:
 	fov_pulse = 16.0
 	camera_shake = 0.2
 	_vibrate(100)
+	if sfx:
+		sfx.supernova()
 
 func _on_supernova_end() -> void:
 	fever_label.visible = false

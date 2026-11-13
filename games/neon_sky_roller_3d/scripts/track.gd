@@ -125,6 +125,16 @@ func _track_material(emissive: bool = false) -> StandardMaterial3D:
 		m.emission_energy_multiplier = 1.8
 	return m
 
+func _neon_mat(col: Color, energy: float = 4.0, unshaded: bool = true) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.emission_enabled = true
+	m.emission = col
+	m.emission_energy_multiplier = energy
+	if unshaded:
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return m
+
 func _add_platform(pos: Vector3, width: float, length: float, collides: bool) -> void:
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
@@ -133,46 +143,71 @@ func _add_platform(pos: Vector3, width: float, length: float, collides: bool) ->
 
 	var mesh_i := MeshInstance3D.new()
 	var box := BoxMesh.new()
-	box.size = Vector3(width, 0.35, length)
+	box.size = Vector3(width, 0.42, length)
 	mesh_i.mesh = box
-	mesh_i.material_override = _track_material()
+	var tm := _track_material()
+	tm.albedo_color = track_color.darkened(0.05)
+	tm.metallic = 0.85
+	tm.roughness = 0.22
+	mesh_i.material_override = tm
 	body.add_child(mesh_i)
 
-	# Center neon strip
+	# Dual lane neon lines (commercial runner look)
+	for side in [-0.22, 0.22]:
+		var lane := MeshInstance3D.new()
+		var lb := BoxMesh.new()
+		lb.size = Vector3(0.1, 0.05, length * 0.98)
+		lane.mesh = lb
+		lane.position = Vector3(width * side, 0.24, 0)
+		lane.material_override = _neon_mat(edge_color, 5.5)
+		body.add_child(lane)
+
+	# Center energy strip
 	var strip := MeshInstance3D.new()
 	var sb := BoxMesh.new()
-	sb.size = Vector3(maxf(0.16, width * 0.05), 0.06, length * 0.98)
+	sb.size = Vector3(maxf(0.22, width * 0.07), 0.07, length * 0.98)
 	strip.mesh = sb
-	strip.position = Vector3(0, 0.2, 0)
-	var sm := StandardMaterial3D.new()
-	sm.albedo_color = edge_color
-	sm.emission_enabled = true
-	sm.emission = edge_color
-	sm.emission_energy_multiplier = 4.0
-	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	strip.material_override = sm
+	strip.position = Vector3(0, 0.24, 0)
+	strip.material_override = _neon_mat(edge_color.lightened(0.25), 6.5)
 	body.add_child(strip)
+
+	# Chevron dashes along center for motion feel
+	var chevron_count: int = maxi(1, int(length / 2.2))
+	for i in range(chevron_count):
+		var ch := MeshInstance3D.new()
+		var cb := BoxMesh.new()
+		cb.size = Vector3(0.55, 0.04, 0.35)
+		ch.mesh = cb
+		ch.position = Vector3(0, 0.27, -length * 0.45 + i * 2.2)
+		ch.material_override = _neon_mat(Color(1, 1, 1, 1), 3.2)
+		body.add_child(ch)
+
+	# Side neon walls (height sells the “highway in the sky”)
+	for side in [-1.0, 1.0]:
+		var wall := MeshInstance3D.new()
+		var wb := BoxMesh.new()
+		wb.size = Vector3(0.08, 0.85, length * 0.98)
+		wall.mesh = wb
+		wall.position = Vector3(side * width * 0.5, 0.55, 0)
+		wall.material_override = _neon_mat(edge_color, 3.8)
+		body.add_child(wall)
 
 	# Soft under-glow slab
 	var glow := MeshInstance3D.new()
 	var gb := BoxMesh.new()
-	gb.size = Vector3(width * 0.92, 0.08, length * 0.95)
+	gb.size = Vector3(width * 1.05, 0.12, length * 0.98)
 	glow.mesh = gb
-	glow.position = Vector3(0, -0.22, 0)
-	var gm := StandardMaterial3D.new()
-	gm.albedo_color = Color(edge_color.r, edge_color.g, edge_color.b, 0.35)
-	gm.emission_enabled = true
-	gm.emission = edge_color
-	gm.emission_energy_multiplier = 1.2
+	glow.position = Vector3(0, -0.28, 0)
+	var gm := _neon_mat(edge_color, 1.6)
 	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(edge_color.r, edge_color.g, edge_color.b, 0.4)
 	glow.material_override = gm
 	body.add_child(glow)
 
 	if collides:
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
-		shape.size = Vector3(width, 0.35, length)
+		shape.size = Vector3(width, 0.42, length)
 		col.shape = shape
 		body.add_child(col)
 
@@ -245,17 +280,30 @@ func _add_gem(pos: Vector3) -> void:
 
 	var mesh_i := MeshInstance3D.new()
 	var prism := PrismMesh.new()
-	prism.size = Vector3(0.5, 0.6, 0.5)
+	prism.size = Vector3(0.55, 0.7, 0.55)
 	mesh_i.mesh = prism
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.45, 1.0, 0.95)
+	m.albedo_color = Color(0.55, 1.0, 0.98)
 	m.emission_enabled = true
-	m.emission = Color(0.35, 1.0, 0.92)
-	m.emission_energy_multiplier = 5.0
-	m.metallic = 0.55
-	m.roughness = 0.15
+	m.emission = Color(0.4, 1.0, 0.95)
+	m.emission_energy_multiplier = 7.0
+	m.metallic = 0.7
+	m.roughness = 0.08
 	mesh_i.material_override = m
 	area.add_child(mesh_i)
+
+	# Halo under gem
+	var halo := MeshInstance3D.new()
+	var hs := SphereMesh.new()
+	hs.radius = 0.35
+	hs.height = 0.2
+	halo.mesh = hs
+	halo.position = Vector3(0, -0.35, 0)
+	var hm := _neon_mat(Color(0.4, 1.0, 0.95), 2.0)
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.albedo_color = Color(0.4, 1.0, 0.95, 0.35)
+	halo.material_override = hm
+	area.add_child(halo)
 
 	var col := CollisionShape3D.new()
 	var shape := SphereShape3D.new()
