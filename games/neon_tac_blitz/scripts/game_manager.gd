@@ -507,9 +507,9 @@ func _process(delta: float) -> void:
 		var fill: StyleBoxFlat = timer_bar.get_theme_stylebox("fill") as StyleBoxFlat
 		if fill:
 			if turn_left < 1.5:
-				fill.bg_color = Color(1.0, 0.4, 0.45)
+				fill.bg_color = Color(1.0, 0.55, 0.28)
 			else:
-				fill.bg_color = Color(0.35, 0.95, 1.0)
+				fill.bg_color = Color(0.4, 0.88, 0.9)
 		if turn_left <= 0.0:
 			_timeout_player()
 
