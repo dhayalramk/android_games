@@ -1,11 +1,11 @@
 extends RefCounted
 ## Glass / neon UI helpers — dark navy, cyan rim, soft bloom shadows.
 
-const CYAN := Color(0.35, 0.92, 1.0)
-const MAGENTA := Color(1.0, 0.45, 0.78)
-const CORAL := Color(1.0, 0.48, 0.32)
-const GLASS_BG := Color(0.07, 0.08, 0.16, 0.72)
-const DEEP := Color(0.04, 0.03, 0.1)
+const CYAN := Color(0.4, 0.9, 0.92)
+const AMBER := Color(1.0, 0.68, 0.32)
+const CORAL := Color(1.0, 0.45, 0.35)
+const GLASS_BG := Color(0.06, 0.1, 0.16, 0.7)
+const DEEP := Color(0.03, 0.05, 0.1)
 
 static func glass_panel(
 	bg: Color = GLASS_BG,

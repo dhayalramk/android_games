@@ -130,13 +130,13 @@ func _build_ui() -> void:
 	brand = Label.new()
 	brand.text = "NEON TAC"
 	brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(brand, UI.CYAN, 40, Color(0.05, 0.2, 0.35, 0.9), 12)
+	UI.label_outline(brand, UI.CYAN, 40, Color(0.04, 0.18, 0.22, 0.9), 12)
 	col.add_child(brand)
 
 	var sub := Label.new()
 	sub.text = "BLITZ"
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(sub, UI.MAGENTA, 22, Color(0.25, 0.05, 0.15, 0.85), 8)
+	UI.label_outline(sub, UI.AMBER, 22, Color(0.2, 0.08, 0.02, 0.85), 8)
 	col.add_child(sub)
 
 	# Glass HUD chip
@@ -144,7 +144,7 @@ func _build_ui() -> void:
 	hud_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hud_chip.add_theme_stylebox_override(
 		"panel",
-		UI.glass_panel(Color(0.08, 0.09, 0.18, 0.42), 22, Color(0.55, 0.9, 1.0, 0.4), Color(0.35, 0.75, 1.0, 0.28))
+		UI.glass_panel(Color(0.07, 0.11, 0.16, 0.42), 22, Color(0.45, 0.85, 0.88, 0.38), Color(0.25, 0.7, 0.75, 0.25))
 	)
 	col.add_child(hud_chip)
 	var hud_col := VBoxContainer.new()
@@ -197,7 +197,7 @@ func _build_ui() -> void:
 	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	board_panel.add_theme_stylebox_override(
 		"panel",
-		UI.glass_panel(Color(0.06, 0.07, 0.14, 0.38), 34, Color(0.45, 0.92, 1.0, 0.55), Color(0.3, 0.75, 1.0, 0.45))
+		UI.glass_panel(Color(0.05, 0.09, 0.14, 0.4), 34, Color(0.4, 0.88, 0.9, 0.5), Color(0.25, 0.7, 0.75, 0.4))
 	)
 	col.add_child(board_panel)
 
@@ -280,7 +280,7 @@ func _build_ui() -> void:
 	ult_btn.text = "ULT  ×2 PLACE  (win streak 2)"
 	ult_btn.custom_minimum_size = Vector2(0, 54)
 	ult_btn.disabled = true
-	UI.apply_button(ult_btn, Color(0.35, 0.12, 0.4, 0.75), Color(1.0, 0.55, 0.95, 0.55), Color(1, 1, 1), 15, 20)
+	UI.apply_button(ult_btn, Color(0.28, 0.16, 0.1, 0.75), Color(1.0, 0.7, 0.35, 0.5), Color(1, 1, 1), 15, 20)
 	ult_btn.pressed.connect(_on_ult)
 	col.add_child(ult_btn)
 
@@ -329,7 +329,7 @@ func _build_menu() -> void:
 
 	var dim := ColorRect.new()
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0.04, 0.02, 0.1, 0.35)
+	dim.color = Color(0.02, 0.04, 0.08, 0.32)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	menu_layer.add_child(dim)
 
@@ -341,7 +341,7 @@ func _build_menu() -> void:
 	card.offset_bottom = 310
 	card.add_theme_stylebox_override(
 		"panel",
-		UI.glass_panel(Color(0.1, 0.08, 0.2, 0.72), 36, Color(0.5, 0.92, 1.0, 0.62), Color(0.4, 0.7, 1.0, 0.5))
+		UI.glass_panel(Color(0.08, 0.12, 0.18, 0.72), 36, Color(0.45, 0.9, 0.92, 0.55), Color(0.3, 0.7, 0.75, 0.42))
 	)
 	menu_layer.add_child(card)
 
@@ -360,13 +360,13 @@ func _build_menu() -> void:
 	var m_brand := Label.new()
 	m_brand.text = "NEON TAC"
 	m_brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(m_brand, UI.CYAN, 44, Color(0.05, 0.18, 0.28, 0.9), 12)
+	UI.label_outline(m_brand, UI.CYAN, 44, Color(0.04, 0.16, 0.2, 0.9), 12)
 	menu_col.add_child(m_brand)
 
 	var m_sub := Label.new()
 	m_sub.text = "BLITZ"
 	m_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(m_sub, UI.MAGENTA, 26, Color(0.2, 0.05, 0.12, 0.85), 8)
+	UI.label_outline(m_sub, UI.AMBER, 26, Color(0.18, 0.07, 0.02, 0.85), 8)
 	menu_col.add_child(m_sub)
 
 	var blurb := Label.new()
@@ -378,7 +378,7 @@ func _build_menu() -> void:
 
 	daily_btn = Button.new()
 	daily_btn.custom_minimum_size = Vector2(0, 52)
-	UI.apply_button(daily_btn, Color(0.85, 0.35, 0.2, 0.88), Color(1.0, 0.75, 0.45), Color(1, 1, 1), 17, 20)
+	UI.apply_button(daily_btn, Color(0.75, 0.4, 0.18, 0.88), Color(1.0, 0.78, 0.45), Color(1, 1, 1), 17, 20)
 	daily_btn.pressed.connect(_on_daily)
 	menu_col.add_child(daily_btn)
 
@@ -387,7 +387,7 @@ func _build_menu() -> void:
 	play_btn.custom_minimum_size = Vector2(0, 70)
 	play_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	play_btn.focus_mode = Control.FOCUS_ALL
-	UI.apply_button(play_btn, Color(0.12, 0.7, 0.88, 0.92), Color(0.7, 1.0, 1.0), Color(0.02, 0.08, 0.14), 24, 24)
+	UI.apply_button(play_btn, Color(0.12, 0.62, 0.68, 0.92), Color(0.65, 0.95, 0.95), Color(0.02, 0.08, 0.1), 24, 24)
 	play_btn.pressed.connect(_start_from_menu)
 	menu_col.add_child(play_btn)
 
