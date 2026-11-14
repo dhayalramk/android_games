@@ -1,5 +1,5 @@
 extends Control
-## Neon Tac Blitz — arcade tic-tac-toe with blitz timer + chaos powers.
+## Neon Tac Blitz — arcade tic-tac-toe with glass neon look + chaos powers.
 
 const UI = preload("res://scripts/ui_style.gd")
 const AIScript = preload("res://scripts/ai.gd")
@@ -17,12 +17,28 @@ const POWER_FREEZE := 3
 const TURN_TIME := 5.0
 const POWER_SPAWN_CHANCE := 0.42
 
-var board: Array = []  # 9 ints
-var powers: Array = []  # 9 ints
-var frozen: Array = []  # 9 bools — locked marks
-var cells: Array = []  # Button nodes
-var power_badges: Array = []  # Label overlays
-var mark_labels: Array = []
+const TEX_BG := "res://assets/generated/bg_nebula.png"
+const TEX_CELL := "res://assets/generated/cell_empty.png"
+const TEX_BOMB := "res://assets/generated/cell_bomb.png"
+const TEX_WARP := "res://assets/generated/cell_warp.png"
+const TEX_ICE := "res://assets/generated/cell_ice.png"
+const TEX_X := "res://assets/generated/mark_x.png"
+const TEX_O := "res://assets/generated/mark_o.png"
+const TEX_CHIP_BOMB := "res://assets/generated/chip_bomb.png"
+const TEX_CHIP_WARP := "res://assets/generated/chip_warp.png"
+const TEX_CHIP_ICE := "res://assets/generated/chip_ice.png"
+const TEX_CHIP_LOCK := "res://assets/generated/chip_lock.png"
+const TEX_LOGO := "res://assets/generated/logo_mark.png"
+const TEX_ORB_P := "res://assets/generated/orb_purple.png"
+const TEX_ORB_C := "res://assets/generated/orb_cyan.png"
+
+var board: Array = []
+var powers: Array = []
+var frozen: Array = []
+var cells: Array = []
+var cell_bgs: Array = []
+var mark_rects: Array = []
+var power_chips: Array = []
 
 var player_turn: bool = true
 var game_over: bool = false
@@ -34,6 +50,7 @@ var match_wins: int = 0
 var match_losses: int = 0
 var turn_left: float = TURN_TIME
 var ai_thinking: bool = false
+var _time: float = 0.0
 
 var sfx: Node
 var brand: Label
@@ -53,6 +70,9 @@ var daily_btn: Button
 var home_btn: Button
 var win_line: Array = []
 var gem_label: Label
+var orbs: Array = []
+var again_btn: Button
+var hud_chip: PanelContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -63,27 +83,31 @@ func _ready() -> void:
 	_build_ui()
 	_show_menu()
 
+func _tex(path: String) -> Texture2D:
+	return load(path) as Texture2D
+
 func _build_ui() -> void:
-	# Atmosphere
-	var bg := ColorRect.new()
+	# Nebula atmosphere
+	var bg := TextureRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.04, 0.06, 0.1)
+	bg.texture = _tex(TEX_BG)
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	var wash := ColorRect.new()
-	wash.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	wash.offset_bottom = 340
-	wash.color = Color(0.05, 0.55, 0.7, 0.18)
-	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(wash)
-
-	var wash2 := ColorRect.new()
-	wash2.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	wash2.offset_top = -280
-	wash2.color = Color(1.0, 0.4, 0.15, 0.12)
-	wash2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(wash2)
+	# Soft floating orbs
+	for i in range(4):
+		var orb := TextureRect.new()
+		orb.texture = _tex(TEX_ORB_P if i % 2 == 0 else TEX_ORB_C)
+		orb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		orb.stretch_mode = TextureRect.STRETCH_SCALE
+		orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		orb.modulate = Color(1, 1, 1, 0.55)
+		orb.size = Vector2(220, 220)
+		orb.position = Vector2(40.0 + i * 90.0, 120.0 + (i % 3) * 180.0)
+		add_child(orb)
+		orbs.append({"n": orb, "base": orb.position, "phase": i * 1.3, "amp": 18.0 + i * 6.0})
 
 	flash = ColorRect.new()
 	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -93,224 +117,286 @@ func _build_ui() -> void:
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 24)
-	margin.add_theme_constant_override("margin_right", 24)
-	margin.add_theme_constant_override("margin_top", 36)
-	margin.add_theme_constant_override("margin_bottom", 28)
+	margin.add_theme_constant_override("margin_left", 22)
+	margin.add_theme_constant_override("margin_right", 22)
+	margin.add_theme_constant_override("margin_top", 40)
+	margin.add_theme_constant_override("margin_bottom", 24)
 	add_child(margin)
 
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 12)
+	col.add_theme_constant_override("separation", 10)
 	margin.add_child(col)
 
 	brand = Label.new()
 	brand.text = "NEON TAC"
 	brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(brand, Color(0.35, 0.95, 1.0), 42, Color(0.02, 0.15, 0.2, 0.85), 10)
+	UI.label_outline(brand, UI.CYAN, 40, Color(0.04, 0.18, 0.22, 0.9), 12)
 	col.add_child(brand)
 
 	var sub := Label.new()
 	sub.text = "BLITZ"
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(sub, Color(1.0, 0.55, 0.2), 26, Color(0.2, 0.05, 0.0, 0.8), 7)
+	UI.label_outline(sub, UI.AMBER, 22, Color(0.2, 0.08, 0.02, 0.85), 8)
 	col.add_child(sub)
+
+	# Glass HUD chip
+	hud_chip = PanelContainer.new()
+	hud_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hud_chip.add_theme_stylebox_override(
+		"panel",
+		UI.glass_panel(Color(0.07, 0.11, 0.16, 0.42), 22, Color(0.45, 0.85, 0.88, 0.38), Color(0.25, 0.7, 0.75, 0.25))
+	)
+	col.add_child(hud_chip)
+	var hud_col := VBoxContainer.new()
+	hud_col.add_theme_constant_override("separation", 4)
+	hud_chip.add_child(hud_col)
 
 	score_label = Label.new()
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(score_label, Color(1, 0.95, 0.85), 16, Color(0, 0, 0, 0.55), 4)
-	col.add_child(score_label)
+	UI.label_outline(score_label, Color(0.95, 0.97, 1.0), 16, Color(0, 0, 0, 0.45), 3)
+	hud_col.add_child(score_label)
 
 	gem_label = Label.new()
 	gem_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(gem_label, Color(0.45, 1.0, 0.95), 15, Color(0, 0, 0, 0.5), 3)
-	col.add_child(gem_label)
+	UI.label_outline(gem_label, Color(0.55, 1.0, 0.95), 14, Color(0, 0, 0, 0.4), 3)
+	hud_col.add_child(gem_label)
 
 	streak_label = Label.new()
 	streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(streak_label, Color(1.0, 0.85, 0.4), 15, Color(0, 0, 0, 0.5), 3)
-	col.add_child(streak_label)
+	UI.label_outline(streak_label, Color(1.0, 0.82, 0.55), 13, Color(0, 0, 0, 0.4), 3)
+	hud_col.add_child(streak_label)
 
 	status = Label.new()
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	UI.label_outline(status, Color(0.9, 0.95, 1.0), 18, Color(0, 0, 0, 0.55), 5)
+	UI.label_outline(status, Color(0.88, 0.94, 1.0), 17, Color(0.02, 0.04, 0.1, 0.55), 5)
 	col.add_child(status)
 
 	timer_bar = ProgressBar.new()
 	timer_bar.max_value = TURN_TIME
 	timer_bar.value = TURN_TIME
 	timer_bar.show_percentage = false
-	timer_bar.custom_minimum_size = Vector2(0, 14)
+	timer_bar.custom_minimum_size = Vector2(0, 12)
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(0.25, 0.9, 1.0)
+	fill.bg_color = Color(0.35, 0.95, 1.0)
 	fill.set_corner_radius_all(8)
+	fill.shadow_color = Color(0.3, 0.9, 1.0, 0.45)
+	fill.shadow_size = 6
 	var bg_style := StyleBoxFlat.new()
-	bg_style.bg_color = Color(0.1, 0.12, 0.18)
+	bg_style.bg_color = Color(0.08, 0.1, 0.18, 0.85)
 	bg_style.set_corner_radius_all(8)
+	bg_style.set_border_width_all(1)
+	bg_style.border_color = Color(0.4, 0.7, 0.9, 0.25)
 	timer_bar.add_theme_stylebox_override("fill", fill)
 	timer_bar.add_theme_stylebox_override("background", bg_style)
 	col.add_child(timer_bar)
 
-	# Board
+	# Board glass frame
 	var board_panel := PanelContainer.new()
 	board_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	board_panel.add_theme_stylebox_override("panel", UI.panel(Color(0.07, 0.09, 0.14, 0.95), 24, Color(0.3, 0.85, 1.0, 0.35)))
+	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	board_panel.add_theme_stylebox_override(
+		"panel",
+		UI.glass_panel(Color(0.05, 0.09, 0.14, 0.4), 34, Color(0.4, 0.88, 0.9, 0.5), Color(0.25, 0.7, 0.75, 0.4))
+	)
 	col.add_child(board_panel)
 
 	var board_margin := MarginContainer.new()
-	board_margin.add_theme_constant_override("margin_left", 12)
-	board_margin.add_theme_constant_override("margin_right", 12)
-	board_margin.add_theme_constant_override("margin_top", 12)
-	board_margin.add_theme_constant_override("margin_bottom", 12)
+	board_margin.add_theme_constant_override("margin_left", 14)
+	board_margin.add_theme_constant_override("margin_right", 14)
+	board_margin.add_theme_constant_override("margin_top", 14)
+	board_margin.add_theme_constant_override("margin_bottom", 14)
 	board_panel.add_child(board_margin)
 
 	board_wrap = GridContainer.new()
 	board_wrap.columns = 3
-	board_wrap.add_theme_constant_override("h_separation", 10)
-	board_wrap.add_theme_constant_override("v_separation", 10)
+	board_wrap.add_theme_constant_override("h_separation", 12)
+	board_wrap.add_theme_constant_override("v_separation", 12)
 	board_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	board_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	board_margin.add_child(board_wrap)
 
 	cells.clear()
-	mark_labels.clear()
-	power_badges.clear()
+	cell_bgs.clear()
+	mark_rects.clear()
+	power_chips.clear()
 	for i in range(9):
 		var cell := Button.new()
-		cell.custom_minimum_size = Vector2(0, 150)
+		cell.custom_minimum_size = Vector2(0, 148)
 		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cell.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		cell.focus_mode = Control.FOCUS_NONE
-		cell.clip_text = true
-		UI.apply_button(cell, Color(0.1, 0.13, 0.2), Color(0.35, 0.7, 0.9, 0.4), Color(1, 1, 1), 48)
+		cell.flat = true
+		cell.clip_contents = true
+		# Invisible hit target; visuals live in children
+		var invis := StyleBoxEmpty.new()
+		cell.add_theme_stylebox_override("normal", invis)
+		cell.add_theme_stylebox_override("hover", invis)
+		cell.add_theme_stylebox_override("pressed", invis)
+		cell.add_theme_stylebox_override("focus", invis)
+		cell.add_theme_stylebox_override("disabled", invis)
 		var idx := i
 		cell.pressed.connect(func(): _on_cell(idx))
 		board_wrap.add_child(cell)
 
-		var overlay := Label.new()
-		overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		overlay.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		overlay.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		UI.label_outline(overlay, Color(0.4, 0.95, 1.0), 56, Color(0, 0, 0, 0.55), 8)
-		cell.add_child(overlay)
+		var cbg := TextureRect.new()
+		cbg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		cbg.texture = _tex(TEX_CELL)
+		cbg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cbg.stretch_mode = TextureRect.STRETCH_SCALE
+		cbg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cell.add_child(cbg)
 
-		var badge := Label.new()
-		badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		badge.offset_left = -70
-		badge.offset_top = 6
-		badge.offset_right = -8
-		badge.offset_bottom = 34
-		badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		UI.label_outline(badge, Color(1.0, 0.85, 0.35), 14, Color(0, 0, 0, 0.6), 3)
-		cell.add_child(badge)
+		var mark := TextureRect.new()
+		mark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		mark.offset_left = 12
+		mark.offset_top = 12
+		mark.offset_right = -12
+		mark.offset_bottom = -12
+		mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.visible = false
+		cell.add_child(mark)
+
+		var chip := TextureRect.new()
+		chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		chip.offset_left = -92
+		chip.offset_top = 8
+		chip.offset_right = -8
+		chip.offset_bottom = 36
+		chip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		chip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.visible = false
+		cell.add_child(chip)
 
 		cells.append(cell)
-		mark_labels.append(overlay)
-		power_badges.append(badge)
+		cell_bgs.append(cbg)
+		mark_rects.append(mark)
+		power_chips.append(chip)
 
 	ult_btn = Button.new()
 	ult_btn.text = "ULT  ×2 PLACE  (win streak 2)"
-	ult_btn.custom_minimum_size = Vector2(0, 56)
+	ult_btn.custom_minimum_size = Vector2(0, 54)
 	ult_btn.disabled = true
-	UI.apply_button(ult_btn, Color(0.55, 0.2, 0.55), Color(1.0, 0.7, 1.0, 0.5), Color(1, 1, 1), 16)
+	UI.apply_button(ult_btn, Color(0.28, 0.16, 0.1, 0.75), Color(1.0, 0.7, 0.35, 0.5), Color(1, 1, 1), 15, 20)
 	ult_btn.pressed.connect(_on_ult)
 	col.add_child(ult_btn)
 
 	tip = Label.new()
 	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	UI.label_outline(tip, Color(0.75, 0.88, 1.0, 0.95), 13, Color(0, 0, 0, 0.45), 3)
+	UI.label_outline(tip, Color(0.75, 0.88, 1.0, 0.9), 12, Color(0, 0, 0, 0.4), 3)
 	tip.text = "BOMB clears neighbors · WARP extra mark · ICE locks a cell"
 	col.add_child(tip)
 
 	banner = Label.new()
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	UI.label_outline(banner, Color(1, 0.95, 0.75), 28, Color(0, 0, 0, 0.7), 8)
+	UI.label_outline(banner, Color(1, 0.95, 0.85), 30, Color(0.05, 0.02, 0.1, 0.8), 10)
 	banner.visible = false
 	col.add_child(banner)
 
-	var again := Button.new()
-	again.name = "AgainBtn"
-	again.text = "PLAY AGAIN"
-	again.custom_minimum_size = Vector2(0, 58)
-	again.visible = false
-	UI.apply_button(again, Color(0.15, 0.7, 0.85), Color(0.7, 1.0, 1.0), Color(0.02, 0.08, 0.12), 22)
-	again.pressed.connect(_start_round)
-	col.add_child(again)
+	again_btn = Button.new()
+	again_btn.name = "AgainBtn"
+	again_btn.text = "PLAY AGAIN"
+	again_btn.custom_minimum_size = Vector2(0, 58)
+	again_btn.visible = false
+	UI.apply_button(again_btn, Color(0.15, 0.65, 0.85, 0.9), Color(0.65, 1.0, 1.0), Color(0.02, 0.08, 0.14), 22, 22)
+	again_btn.pressed.connect(_start_round)
+	col.add_child(again_btn)
 
-	# Menu overlay
+	_build_menu()
+
+	home_btn = Button.new()
+	home_btn.text = "⌂  HOME"
+	home_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	home_btn.offset_left = 16
+	home_btn.offset_top = 16
+	home_btn.offset_right = 128
+	home_btn.offset_bottom = 56
+	home_btn.visible = false
+	UI.apply_button(home_btn, Color(0.08, 0.1, 0.18, 0.75), Color(0.55, 0.85, 1.0, 0.45), Color(1, 1, 1), 13, 16)
+	home_btn.pressed.connect(_show_menu)
+	add_child(home_btn)
+
+func _build_menu() -> void:
 	menu_layer = Control.new()
 	menu_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	menu_layer.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(menu_layer)
 
-	var menu_bg := ColorRect.new()
-	menu_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	menu_bg.color = Color(0.03, 0.05, 0.09, 0.92)
-	menu_layer.add_child(menu_bg)
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.02, 0.04, 0.08, 0.32)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	menu_layer.add_child(dim)
+
+	var card := PanelContainer.new()
+	card.set_anchors_preset(Control.PRESET_CENTER)
+	card.offset_left = -280
+	card.offset_right = 280
+	card.offset_top = -310
+	card.offset_bottom = 310
+	card.add_theme_stylebox_override(
+		"panel",
+		UI.glass_panel(Color(0.08, 0.12, 0.18, 0.72), 36, Color(0.45, 0.9, 0.92, 0.55), Color(0.3, 0.7, 0.75, 0.42))
+	)
+	menu_layer.add_child(card)
 
 	var menu_col := VBoxContainer.new()
-	menu_col.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	menu_col.offset_left = -260
-	menu_col.offset_right = 260
-	menu_col.offset_top = -220
-	menu_col.offset_bottom = 220
-	menu_col.add_theme_constant_override("separation", 14)
-	menu_layer.add_child(menu_col)
+	menu_col.add_theme_constant_override("separation", 12)
+	card.add_child(menu_col)
+
+	var logo := TextureRect.new()
+	logo.texture = _tex(TEX_LOGO)
+	logo.custom_minimum_size = Vector2(0, 120)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_col.add_child(logo)
 
 	var m_brand := Label.new()
 	m_brand.text = "NEON TAC"
 	m_brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(m_brand, Color(0.4, 0.95, 1.0), 48, Color(0.02, 0.12, 0.18, 0.9), 12)
+	UI.label_outline(m_brand, UI.CYAN, 44, Color(0.04, 0.16, 0.2, 0.9), 12)
 	menu_col.add_child(m_brand)
 
 	var m_sub := Label.new()
 	m_sub.text = "BLITZ"
 	m_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label_outline(m_sub, Color(1.0, 0.55, 0.22), 30, Color(0.15, 0.04, 0, 0.85), 8)
+	UI.label_outline(m_sub, UI.AMBER, 26, Color(0.18, 0.07, 0.02, 0.85), 8)
 	menu_col.add_child(m_sub)
 
 	var blurb := Label.new()
-	blurb.text = "Not regular tic-tac-toe.\n5s blitz clock · chaos power cells · streak Ult."
+	blurb.text = "Survive every move.\n5s blitz · chaos gems · streak Ult."
 	blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	UI.label_outline(blurb, Color(0.85, 0.92, 1.0), 16, Color(0, 0, 0, 0.55), 4)
+	UI.label_outline(blurb, Color(0.88, 0.92, 1.0), 15, Color(0, 0, 0, 0.5), 4)
 	menu_col.add_child(blurb)
 
 	daily_btn = Button.new()
-	daily_btn.custom_minimum_size = Vector2(0, 54)
-	UI.apply_button(daily_btn, Color(0.95, 0.45, 0.15), Color(1.0, 0.85, 0.4), Color(1, 1, 1), 18)
+	daily_btn.custom_minimum_size = Vector2(0, 52)
+	UI.apply_button(daily_btn, Color(0.75, 0.4, 0.18, 0.88), Color(1.0, 0.78, 0.45), Color(1, 1, 1), 17, 20)
 	daily_btn.pressed.connect(_on_daily)
 	menu_col.add_child(daily_btn)
 
 	play_btn = Button.new()
-	play_btn.text = "▶  START BLITZ"
-	play_btn.custom_minimum_size = Vector2(0, 72)
+	play_btn.text = "START BLITZ"
+	play_btn.custom_minimum_size = Vector2(0, 70)
 	play_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	play_btn.focus_mode = Control.FOCUS_ALL
-	UI.apply_button(play_btn, Color(0.15, 0.75, 0.9), Color(0.7, 1.0, 1.0), Color(0.02, 0.08, 0.12), 26)
+	UI.apply_button(play_btn, Color(0.12, 0.62, 0.68, 0.92), Color(0.65, 0.95, 0.95), Color(0.02, 0.08, 0.1), 24, 24)
 	play_btn.pressed.connect(_start_from_menu)
 	menu_col.add_child(play_btn)
 
 	var how := Label.new()
-	how.text = "You are ✕  ·  AI is ○\nWin 2 rounds in a row to unlock Ult (place twice)."
+	how.text = "You are ✕  ·  AI is ○\nWin 2 in a row to unlock Ult."
 	how.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	UI.label_outline(how, Color(0.7, 0.85, 1.0), 14, Color(0, 0, 0, 0.5), 3)
+	UI.label_outline(how, Color(0.72, 0.84, 1.0), 13, Color(0, 0, 0, 0.45), 3)
 	menu_col.add_child(how)
-
-	home_btn = Button.new()
-	home_btn.text = "⌂ HOME"
-	home_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	home_btn.offset_left = 18
-	home_btn.offset_top = 18
-	home_btn.offset_right = 120
-	home_btn.offset_bottom = 58
-	home_btn.visible = false
-	UI.apply_button(home_btn, Color(0.1, 0.12, 0.2, 0.9), Color(0.5, 0.8, 1.0, 0.45), Color(1, 1, 1), 14)
-	home_btn.pressed.connect(_show_menu)
-	add_child(home_btn)
 
 func _show_menu() -> void:
 	in_menu = true
@@ -350,16 +436,14 @@ func _start_from_menu() -> void:
 	menu_layer.visible = false
 	if home_btn:
 		home_btn.visible = true
-	# Keep series score across rounds in a session; only reset on fresh menu start
 	if match_wins == 0 and match_losses == 0:
 		win_streak = 0
 		ult_ready = false
 	_start_round()
 
 func _start_round() -> void:
-	var again: Button = find_child("AgainBtn", true, false) as Button
-	if again:
-		again.visible = false
+	if again_btn:
+		again_btn.visible = false
 	banner.visible = false
 	game_over = false
 	player_turn = true
@@ -387,15 +471,13 @@ func _reset_board_state(with_powers: bool) -> void:
 		frozen.append(false)
 
 func _spawn_opening_powers() -> void:
-	# Seed 1–2 chaos cells so first game already feels different
 	var slots := [0, 1, 2, 3, 4, 5, 6, 7, 8]
 	slots.shuffle()
 	var count := 1 + randi() % 2
 	for i in range(count):
 		powers[slots[i]] = [POWER_BOMB, POWER_WARP, POWER_FREEZE][randi() % 3]
 
-func _unhandled_input(event: InputEvent) -> void:
-	# Desktop helpers
+func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if in_menu and (event.keycode == KEY_ENTER or event.keycode == KEY_SPACE or event.keycode == KEY_S):
 			_start_from_menu()
@@ -405,6 +487,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
+	_time += delta
+	for o in orbs:
+		var n: TextureRect = o["n"]
+		var base: Vector2 = o["base"]
+		var phase: float = o["phase"]
+		var amp: float = o["amp"]
+		n.position = base + Vector2(sin(_time * 0.55 + phase) * amp, cos(_time * 0.4 + phase) * amp * 0.7)
+		n.modulate.a = 0.4 + 0.2 * sin(_time * 0.7 + phase)
+
 	if flash.color.a > 0.0:
 		flash.color.a = maxf(0.0, flash.color.a - delta * 2.2)
 	if in_menu or game_over or ai_thinking:
@@ -412,13 +503,17 @@ func _process(delta: float) -> void:
 	if player_turn:
 		turn_left -= delta
 		timer_bar.value = turn_left
-		if turn_left <= 1.2 and int(turn_left * 10) % 3 == 0:
-			pass
+		# Urgency tint on timer
+		var fill: StyleBoxFlat = timer_bar.get_theme_stylebox("fill") as StyleBoxFlat
+		if fill:
+			if turn_left < 1.5:
+				fill.bg_color = Color(1.0, 0.55, 0.28)
+			else:
+				fill.bg_color = Color(0.4, 0.88, 0.9)
 		if turn_left <= 0.0:
 			_timeout_player()
 
 func _timeout_player() -> void:
-	# Auto-place randomly so blitz hurts
 	var empties: Array[int] = []
 	for i in range(9):
 		if board[i] == MARK_EMPTY:
@@ -505,7 +600,7 @@ func _apply_power(idx: int, mark: int, power: int) -> void:
 		POWER_BOMB:
 			if sfx:
 				sfx.bomb()
-			flash.color = Color(1.0, 0.55, 0.2, 0.35)
+			flash.color = Color(1.0, 0.4, 0.3, 0.35)
 			status.text = "BOMB! Adjacent marks cleared"
 			var neighbors := _neighbors(idx)
 			for n in neighbors:
@@ -515,7 +610,7 @@ func _apply_power(idx: int, mark: int, power: int) -> void:
 					board[n] = MARK_EMPTY
 					powers[n] = POWER_NONE
 		POWER_WARP:
-			flash.color = Color(0.4, 0.9, 1.0, 0.3)
+			flash.color = Color(0.35, 0.9, 1.0, 0.3)
 			status.text = "WARP! Extra mark elsewhere"
 			var empties: Array[int] = []
 			for i in range(9):
@@ -527,7 +622,7 @@ func _apply_power(idx: int, mark: int, power: int) -> void:
 				powers[j] = POWER_NONE
 				_pulse_cell(j, mark)
 		POWER_FREEZE:
-			flash.color = Color(0.6, 0.85, 1.0, 0.28)
+			flash.color = Color(0.55, 0.8, 1.0, 0.28)
 			status.text = "FREEZE! This mark is locked"
 		_:
 			pass
@@ -592,9 +687,8 @@ func _end_round(winner: int) -> void:
 	game_over = true
 	ult_armed = false
 	banner.visible = true
-	var again: Button = find_child("AgainBtn", true, false) as Button
-	if again:
-		again.visible = true
+	if again_btn:
+		again_btn.visible = true
 	if winner == MARK_X:
 		match_wins += 1
 		win_streak += 1
@@ -608,7 +702,7 @@ func _end_round(winner: int) -> void:
 		if sfx:
 			sfx.win()
 		_vibrate(80)
-		_highlight_win_line(Color(0.35, 0.95, 1.0))
+		_highlight_win_line(true)
 	else:
 		match_losses += 1
 		win_streak = 0
@@ -617,21 +711,22 @@ func _end_round(winner: int) -> void:
 			progress.record_loss()
 		banner.text = "AI WINS"
 		status.text = "Shake it off — rematch"
-		flash.color = Color(1.0, 0.35, 0.25, 0.35)
+		flash.color = Color(1.0, 0.35, 0.45, 0.35)
 		if sfx:
 			sfx.lose()
 		_vibrate(140)
-		_highlight_win_line(Color(1.0, 0.55, 0.25))
+		_highlight_win_line(false)
 	_refresh_hud()
 
-func _highlight_win_line(col: Color) -> void:
+func _highlight_win_line(player_won: bool) -> void:
 	for idx in win_line:
 		var cell: Button = cells[idx]
-		UI.apply_button(cell, Color(col.r, col.g, col.b, 0.28), col, Color(1, 1, 1), 48)
+		var cbg: TextureRect = cell_bgs[idx]
+		cbg.modulate = Color(1.25, 1.25, 1.25, 1.0) if player_won else Color(1.2, 0.9, 0.9, 1.0)
 		cell.pivot_offset = cell.size * 0.5
 		var tw := create_tween()
 		tw.tween_property(cell, "scale", Vector2(1.08, 1.08), 0.15)
-		tw.tween_property(cell, "scale", Vector2.ONE, 0.2)
+		tw.tween_property(cell, "scale", Vector2.ONE, 0.22)
 
 func _end_draw() -> void:
 	game_over = true
@@ -640,74 +735,84 @@ func _end_draw() -> void:
 	banner.visible = true
 	banner.text = "DRAW — CHAOS TIE"
 	status.text = "Board full. Go again."
-	var again: Button = find_child("AgainBtn", true, false) as Button
-	if again:
-		again.visible = true
+	if again_btn:
+		again_btn.visible = true
 	flash.color = Color(1.0, 0.85, 0.4, 0.3)
 	_refresh_hud()
 
-func _pulse_cell(idx: int, mark: int) -> void:
+func _pulse_cell(idx: int, _mark: int) -> void:
 	var cell: Button = cells[idx]
 	cell.pivot_offset = cell.size * 0.5
-	cell.scale = Vector2(1.12, 1.12)
+	cell.scale = Vector2(1.14, 1.14)
 	var tw := create_tween()
-	tw.tween_property(cell, "scale", Vector2.ONE, 0.18).set_ease(Tween.EASE_OUT)
+	tw.tween_property(cell, "scale", Vector2.ONE, 0.2).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	var mark: TextureRect = mark_rects[idx]
+	mark.modulate.a = 0.0
+	var tw2 := create_tween()
+	tw2.tween_property(mark, "modulate:a", 1.0, 0.18)
 
 func _refresh_board() -> void:
 	for i in range(9):
-		var overlay: Label = mark_labels[i]
-		var badge: Label = power_badges[i]
+		var cbg: TextureRect = cell_bgs[i]
+		var mark: TextureRect = mark_rects[i]
+		var chip: TextureRect = power_chips[i]
 		var cell: Button = cells[i]
-		match board[i]:
-			MARK_X:
-				overlay.text = "✕"
-				UI.label_outline(overlay, Color(0.35, 0.95, 1.0), 56, Color(0.02, 0.15, 0.2, 0.75), 8)
-			MARK_O:
-				overlay.text = "○"
-				UI.label_outline(overlay, Color(1.0, 0.55, 0.25), 56, Color(0.2, 0.05, 0.0, 0.75), 8)
-			_:
-				overlay.text = ""
+
 		match powers[i]:
 			POWER_BOMB:
-				badge.text = "BOMB"
+				cbg.texture = _tex(TEX_BOMB)
 			POWER_WARP:
-				badge.text = "WARP"
+				cbg.texture = _tex(TEX_WARP)
 			POWER_FREEZE:
-				badge.text = "ICE"
+				cbg.texture = _tex(TEX_ICE)
 			_:
-				badge.text = ""
+				cbg.texture = _tex(TEX_CELL)
+		cbg.modulate = Color.WHITE
+
+		match board[i]:
+			MARK_X:
+				mark.texture = _tex(TEX_X)
+				mark.visible = true
+				mark.modulate = Color.WHITE
+			MARK_O:
+				mark.texture = _tex(TEX_O)
+				mark.visible = true
+				mark.modulate = Color.WHITE
+			_:
+				mark.visible = false
+
+		chip.visible = false
 		if frozen[i] and board[i] != MARK_EMPTY:
-			badge.text = "LOCK"
-		var border := Color(0.35, 0.7, 0.9, 0.4)
-		var bg := Color(0.1, 0.13, 0.2)
-		if powers[i] == POWER_BOMB:
-			border = Color(1.0, 0.5, 0.15, 0.85)
-			bg = Color(0.22, 0.12, 0.08)
+			chip.texture = _tex(TEX_CHIP_LOCK)
+			chip.visible = true
+		elif powers[i] == POWER_BOMB:
+			chip.texture = _tex(TEX_CHIP_BOMB)
+			chip.visible = true
 		elif powers[i] == POWER_WARP:
-			border = Color(0.4, 0.95, 1.0, 0.85)
-			bg = Color(0.08, 0.16, 0.22)
+			chip.texture = _tex(TEX_CHIP_WARP)
+			chip.visible = true
 		elif powers[i] == POWER_FREEZE:
-			border = Color(0.7, 0.9, 1.0, 0.8)
-			bg = Color(0.1, 0.14, 0.22)
-		UI.apply_button(cell, bg, border, Color(1, 1, 1), 48)
+			chip.texture = _tex(TEX_CHIP_ICE)
+			chip.visible = true
+
 		cell.disabled = game_over or board[i] != MARK_EMPTY or not player_turn
 
 func _refresh_hud() -> void:
-	score_label.text = "YOU  %d   —   AI  %d" % [match_wins, match_losses]
+	score_label.text = "YOU  %d     AI  %d" % [match_wins, match_losses]
 	if progress:
 		gem_label.text = "◆ %d   ·   best streak %d" % [progress.gems, progress.best_streak]
 	if ult_ready:
-		streak_label.text = "ULT READY — tap the Ult button"
+		streak_label.text = "ULT READY — tap below"
 	elif win_streak > 0:
 		streak_label.text = "Win streak %d / 2 for Ult" % win_streak
 	else:
-		streak_label.text = "Win 2 in a row → Ult (place twice)"
+		streak_label.text = "Win 2 in a row → Ult"
 	ult_btn.disabled = not ult_ready or game_over or in_menu
 	if ult_ready:
-		UI.apply_button(ult_btn, Color(0.85, 0.35, 0.15), Color(1.0, 0.85, 0.4), Color(1, 1, 1), 18)
+		UI.apply_button(ult_btn, Color(0.9, 0.35, 0.2, 0.9), Color(1.0, 0.85, 0.45), Color(1, 1, 1), 17, 20)
 		ult_btn.text = "⚡  ARM ULT — PLACE TWICE"
 	else:
-		UI.apply_button(ult_btn, Color(0.2, 0.22, 0.3), Color(0.45, 0.5, 0.6, 0.4), Color(0.75, 0.8, 0.9), 16)
+		UI.apply_button(ult_btn, Color(0.14, 0.15, 0.22, 0.7), Color(0.45, 0.5, 0.6, 0.35), Color(0.75, 0.8, 0.9), 14, 20)
 		ult_btn.text = "ULT  ×2 PLACE  (win streak 2)"
 
 func _vibrate(ms: int) -> void:
